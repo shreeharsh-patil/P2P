@@ -15,6 +15,7 @@ export class WebRTCManager {
   private peerConnection: RTCPeerConnection | null = null;
   private signaling: SignalingClient;
   private targetPeerId: string | null = null;
+  private connectionTimer: any = null;
 
   public controlChannel: RTCDataChannel | null = null;
   public fileChannel: RTCDataChannel | null = null;
@@ -44,7 +45,7 @@ export class WebRTCManager {
   }
 
   public setTargetPeerId(peerId: string) {
-    console.log(`[WebRTC] targetPeerId set to: ${peerId}`);
+    console.log(`[WebRTC] Target peer ID set to: ${peerId}`);
     this.targetPeerId = peerId;
     this.flushOutgoingIceCandidates();
   }
@@ -57,16 +58,24 @@ export class WebRTCManager {
       `Answer sent: ${this.answerSent}, received: ${this.answerReceived}`,
       `ICE candidates sent: ${this.iceCandidatesSent}, received: ${this.iceCandidatesReceived}`,
       `Connection: ${this.peerConnection?.connectionState || 'none'}`,
-      `ICE: ${this.peerConnection?.iceConnectionState || 'none'}`,
-      `Gathering: ${this.peerConnection?.iceGatheringState || 'none'}`,
-      `Signaling: ${this.peerConnection?.signalingState || 'none'}`,
+      `ICE State: ${this.peerConnection?.iceConnectionState || 'none'}`,
+      `Gathering State: ${this.peerConnection?.iceGatheringState || 'none'}`,
+      `Signaling State: ${this.peerConnection?.signalingState || 'none'}`,
     ].join('\n');
   }
 
   private updateState(state: WebRTCState) {
     if (this.connectionState === state) return;
     this.connectionState = state;
-    console.log(`[WebRTC] State → ${state}`);
+    console.log(`[WebRTC] Connection state transition: ${state}`);
+
+    if (state === 'connected') {
+      if (this.connectionTimer) {
+        clearTimeout(this.connectionTimer);
+        this.connectionTimer = null;
+      }
+    }
+
     this.events.onStateChange?.(state);
   }
 
@@ -75,9 +84,8 @@ export class WebRTCManager {
       if (!msg.payload) return;
       const { type, sdp, candidate } = msg.payload;
 
-      console.log(`[WebRTC] SIGNAL received: ${type ? `type=${type}` : ''}${candidate ? 'ICE candidate' : ''} from peerId=${msg.peerId}`);
+      console.log(`[WebRTC] Incoming signal: ${type ? `type=${type}` : ''}${candidate ? ' candidate' : ''} from ${msg.peerId}`);
 
-      // Learn the remote peer's ID from the first signal we receive
       if (msg.peerId && !this.targetPeerId) {
         this.setTargetPeerId(msg.peerId);
       }
@@ -94,13 +102,13 @@ export class WebRTCManager {
           await this.handleIceCandidate(candidate);
         }
       } catch (e) {
-        console.error('[WebRTC] Error handling signal:', e);
+        console.error('[WebRTC] Error processing incoming signal:', e);
       }
     });
   }
 
   public async initiateConnection(targetPeerId: string): Promise<void> {
-    console.log(`[WebRTC] initiateConnection to ${targetPeerId}`);
+    console.log(`[WebRTC] Initiating WebRTC offer to target peer: ${targetPeerId}`);
     this.isInitiator = true;
     this.setTargetPeerId(targetPeerId);
     this.createPeerConnection();
@@ -113,52 +121,31 @@ export class WebRTCManager {
     const offer = await this.peerConnection!.createOffer();
     await this.peerConnection!.setLocalDescription(offer);
 
-    console.log(`[WebRTC] Sending offer to ${targetPeerId}`);
+    console.log(`[WebRTC] Sending SDP offer to ${targetPeerId}`);
     this.signaling.sendSignal(targetPeerId, { type: 'offer', sdp: offer });
     this.offerSent = true;
     this.flushOutgoingIceCandidates();
+    this.startConnectionTimeout();
   }
 
   private createPeerConnection() {
     if (this.peerConnection) return;
 
-    // Hardcoded reliable ICE servers — no dynamic fetch, no failure points
+    // High-speed, zero-latency STUN configuration
     const config: RTCConfiguration = {
       iceServers: [
-        // Google STUN (most reliable)
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
         { urls: 'stun:stun2.l.google.com:19302' },
-        // Cloudflare STUN
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
         { urls: 'stun:stun.cloudflare.com:3478' },
-        // OpenRelay TURN — free public relay by metered.ca
-        // Supports UDP (port 80), TLS (port 443), TCP fallback
-        {
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turns:openrelay.metered.ca:443',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
+        { urls: 'stun:stun.services.mozilla.com' },
       ],
-      iceCandidatePoolSize: 10,
-      iceTransportPolicy: 'all',
+      iceCandidatePoolSize: 10
     };
 
-    console.log(`[WebRTC] Creating PeerConnection with ${config.iceServers!.length} ICE server entries`);
+    console.log(`[WebRTC] Initializing RTCPeerConnection...`);
     this.peerConnection = new RTCPeerConnection(config);
     this.updateState('connecting');
 
@@ -170,21 +157,18 @@ export class WebRTCManager {
           this.signaling.sendSignal(target, { candidate: json });
           this.iceCandidatesSent++;
         } else {
-          console.warn('[WebRTC] ICE candidate generated but no targetPeerId — buffering');
           this.pendingOutgoingIceCandidates.push(json);
         }
-      } else {
-        console.log(`[WebRTC] ICE gathering complete. Sent ${this.iceCandidatesSent} candidates total.`);
       }
     };
 
     this.peerConnection.onconnectionstatechange = () => {
       const state = this.peerConnection?.connectionState;
-      console.log(`[WebRTC] PeerConnection state: ${state}`);
+      console.log(`[WebRTC] PeerConnection state changed: ${state}`);
       if (state === 'connected') {
         this.updateState('connected');
       } else if (state === 'failed') {
-        console.error('[WebRTC] CONNECTION FAILED. Diagnostics:\n' + this.getDiagnostics());
+        console.error('[WebRTC] PeerConnection failed!');
         this.updateState('failed');
       } else if (state === 'disconnected') {
         this.updateState('disconnected');
@@ -195,23 +179,18 @@ export class WebRTCManager {
 
     this.peerConnection.oniceconnectionstatechange = () => {
       const iceState = this.peerConnection?.iceConnectionState;
-      console.log(`[WebRTC] ICE connection: ${iceState}`);
-      // Some browsers don't fire onconnectionstatechange but do fire this
+      console.log(`[WebRTC] ICE state changed: ${iceState}`);
       if (iceState === 'connected' || iceState === 'completed') {
         this.updateState('connected');
       } else if (iceState === 'failed') {
-        console.error('[WebRTC] ICE FAILED. Diagnostics:\n' + this.getDiagnostics());
+        console.error('[WebRTC] ICE failed!');
         this.updateState('failed');
       }
     };
 
-    this.peerConnection.onicegatheringstatechange = () => {
-      console.log(`[WebRTC] ICE gathering: ${this.peerConnection?.iceGatheringState}`);
-    };
-
     this.peerConnection.ondatachannel = (event) => {
       const ch = event.channel;
-      console.log(`[WebRTC] Remote DataChannel received: ${ch.label}`);
+      console.log(`[WebRTC] DataChannel received: ${ch.label}`);
       if (ch.label === 'controlChannel') {
         this.controlChannel = ch;
         this.setupControlChannel(ch);
@@ -222,9 +201,28 @@ export class WebRTCManager {
     };
   }
 
+  private startConnectionTimeout() {
+    if (this.connectionTimer) clearTimeout(this.connectionTimer);
+    this.connectionTimer = setTimeout(() => {
+      if (this.connectionState !== 'connected') {
+        console.warn('[WebRTC] Connection timeout reached (8s) without reaching connected state');
+        if (this.isInitiator && this.peerConnection && this.targetPeerId) {
+          console.log('[WebRTC] Triggering ICE restart...');
+          this.peerConnection.createOffer({ iceRestart: true }).then((offer) => {
+            return this.peerConnection?.setLocalDescription(offer).then(() => offer);
+          }).then((offer) => {
+            if (offer && this.targetPeerId) {
+              this.signaling.sendSignal(this.targetPeerId, { type: 'offer', sdp: offer });
+            }
+          }).catch((err) => console.error('ICE restart error:', err));
+        }
+      }
+    }, 8000);
+  }
+
   private flushOutgoingIceCandidates() {
     if (this.targetPeerId && this.pendingOutgoingIceCandidates.length > 0) {
-      console.log(`[WebRTC] Flushing ${this.pendingOutgoingIceCandidates.length} buffered ICE candidates to ${this.targetPeerId}`);
+      console.log(`[WebRTC] Flushing ${this.pendingOutgoingIceCandidates.length} buffered outgoing ICE candidates to ${this.targetPeerId}`);
       while (this.pendingOutgoingIceCandidates.length > 0) {
         const c = this.pendingOutgoingIceCandidates.shift();
         if (c) {
@@ -236,29 +234,28 @@ export class WebRTCManager {
   }
 
   private async handleOffer(sdp: RTCSessionDescriptionInit, remotePeerId: string) {
-    console.log(`[WebRTC] Processing offer from ${remotePeerId}`);
+    console.log(`[WebRTC] Handling SDP offer from ${remotePeerId}...`);
     this.isInitiator = false;
     this.setTargetPeerId(remotePeerId);
     this.createPeerConnection();
 
     await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(sdp));
-    console.log('[WebRTC] Remote description (offer) set');
     await this.processPendingIncomingIceCandidates();
 
     const answer = await this.peerConnection!.createAnswer();
     await this.peerConnection!.setLocalDescription(answer);
 
-    console.log(`[WebRTC] Sending answer to ${remotePeerId}`);
+    console.log(`[WebRTC] Sending SDP answer to ${remotePeerId}`);
     this.signaling.sendSignal(remotePeerId, { type: 'answer', sdp: answer });
     this.answerSent = true;
     this.flushOutgoingIceCandidates();
+    this.startConnectionTimeout();
   }
 
   private async handleAnswer(sdp: RTCSessionDescriptionInit) {
-    console.log('[WebRTC] Processing answer');
+    console.log('[WebRTC] Handling SDP answer...');
     if (this.peerConnection) {
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
-      console.log('[WebRTC] Remote description (answer) set');
       await this.processPendingIncomingIceCandidates();
       this.flushOutgoingIceCandidates();
     }
@@ -269,7 +266,7 @@ export class WebRTCManager {
       try {
         await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
       } catch (e) {
-        console.warn('[WebRTC] Failed to add ICE candidate', e);
+        console.warn('[WebRTC] Error adding ICE candidate', e);
       }
     } else {
       this.pendingIncomingIceCandidates.push(candidate);
@@ -280,24 +277,22 @@ export class WebRTCManager {
     if (!this.peerConnection?.remoteDescription) return;
     const pending = [...this.pendingIncomingIceCandidates];
     this.pendingIncomingIceCandidates = [];
-    if (pending.length > 0) {
-      console.log(`[WebRTC] Processing ${pending.length} buffered incoming ICE candidates`);
-    }
     for (const c of pending) {
       try {
         await this.peerConnection.addIceCandidate(new RTCIceCandidate(c));
       } catch (e) {
-        console.warn('[WebRTC] Failed to add buffered ICE candidate', e);
+        console.warn('[WebRTC] Error processing buffered candidate', e);
       }
     }
   }
 
   private setupControlChannel(ch: RTCDataChannel) {
     ch.onopen = () => {
-      console.log('[WebRTC] ✅ Control channel OPEN');
+      console.log('[WebRTC] Control DataChannel OPEN');
       this.updateState('connected');
       this.events.onChannelReady?.();
     };
+
     ch.onmessage = (event) => {
       try {
         const msg: ControlMessage = JSON.parse(event.data);
@@ -307,23 +302,26 @@ export class WebRTCManager {
           this.events.onControlMessage?.(msg);
         }
       } catch (e) {
-        console.error('[WebRTC] Control message parse error', e);
+        console.error('[WebRTC] Control message error', e);
       }
     };
+
     ch.onerror = (e) => console.error('[WebRTC] Control channel error', e);
   }
 
   private setupFileChannel(ch: RTCDataChannel) {
     ch.binaryType = 'arraybuffer';
     ch.onopen = () => {
-      console.log('[WebRTC] ✅ File channel OPEN');
+      console.log('[WebRTC] File DataChannel OPEN');
       this.updateState('connected');
     };
+
     ch.onmessage = (event) => {
       if (event.data instanceof ArrayBuffer) {
         this.events.onFileChunk?.(event.data);
       }
     };
+
     ch.onerror = (e) => console.error('[WebRTC] File channel error', e);
   }
 
@@ -344,6 +342,10 @@ export class WebRTCManager {
   }
 
   public close(): void {
+    if (this.connectionTimer) {
+      clearTimeout(this.connectionTimer);
+      this.connectionTimer = null;
+    }
     this.controlChannel?.close();
     this.fileChannel?.close();
     this.peerConnection?.close();
