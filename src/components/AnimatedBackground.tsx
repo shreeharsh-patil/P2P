@@ -55,8 +55,8 @@ export const AnimatedBackground: React.FC = () => {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    // Particle nodes configuration (kept subtle so it never competes with the UI)
-    const particleCount = isMobile ? 10 : 24;
+    // Particle nodes configuration
+    const particleCount = isMobile ? 12 : 36;
     const particles: Array<{
       x: number;
       y: number;
@@ -64,36 +64,62 @@ export const AnimatedBackground: React.FC = () => {
       vy: number;
       radius: number;
       opacity: number;
+      pulseSpeed: number;
     }> = [];
 
     for (let i = 0; i < particleCount; i++) {
       particles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 0.4,
-        vy: (Math.random() - 0.5) * 0.4,
+        vx: (Math.random() - 0.5) * 0.45,
+        vy: (Math.random() - 0.5) * 0.45,
         radius: Math.random() * 1.5 + 1,
-        opacity: Math.random() * 0.4 + 0.1
+        opacity: Math.random() * 0.5 + 0.15,
+        pulseSpeed: Math.random() * 0.02 + 0.005
       });
     }
 
     const render = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Draw particle network lines
       for (let i = 0; i < particles.length; i++) {
         const p1 = particles[i];
         p1.x += p1.vx;
         p1.y += p1.vy;
 
+        // Bounce on boundaries
         if (p1.x < 0 || p1.x > canvas.width) p1.vx *= -1;
         if (p1.y < 0 || p1.y > canvas.height) p1.vy *= -1;
+
+        // Pulse opacity slightly
+        p1.opacity += Math.sin(Date.now() * p1.pulseSpeed) * 0.002;
+        p1.opacity = Math.max(0.1, Math.min(0.6, p1.opacity));
 
         // Draw particle point
         ctx.beginPath();
         ctx.arc(p1.x, p1.y, p1.radius, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(229, 27, 35, ${p1.opacity})`;
+        ctx.fillStyle = `rgba(255, 48, 48, ${p1.opacity})`;
+        ctx.shadowBlur = p1.radius * 3;
+        ctx.shadowColor = '#ff3030';
         ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Mouse interaction: draw connection line to cursor when close
+        if (mousePos.x > 0 && !isMobile) {
+          const mdx = p1.x - mousePos.x;
+          const mdy = p1.y - mousePos.y;
+          const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
+
+          if (mdist < 140) {
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(mousePos.x, mousePos.y);
+            const lineOpacity = (1 - mdist / 140) * 0.25;
+            ctx.strokeStyle = `rgba(255, 48, 48, ${lineOpacity})`;
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+          }
+        }
 
         // Connect nearby particles with thin crimson lines
         for (let j = i + 1; j < particles.length; j++) {
@@ -102,19 +128,18 @@ export const AnimatedBackground: React.FC = () => {
           const dy = p1.y - p2.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
 
-          if (dist < 110) {
+          if (dist < 120) {
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
-            const lineOpacity = (1 - dist / 110) * 0.1;
-            ctx.strokeStyle = `rgba(229, 27, 35, ${lineOpacity})`;
+            const lineOpacity = (1 - dist / 120) * 0.14;
+            ctx.strokeStyle = `rgba(255, 48, 48, ${lineOpacity})`;
             ctx.lineWidth = 0.7;
             ctx.stroke();
           }
         }
       }
 
-      // Static frame when the user prefers reduced motion
       if (!reducedMotion) {
         animationFrameId = requestAnimationFrame(render);
       }
@@ -126,42 +151,45 @@ export const AnimatedBackground: React.FC = () => {
       window.removeEventListener('resize', resizeCanvas);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [isMobile, reducedMotion]);
+  }, [isMobile, reducedMotion, mousePos]);
 
   return (
     <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-[#050505]">
       {/* Radial red atmosphere glow centered behind hero */}
       <div 
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] pointer-events-none opacity-40 blur-[120px]"
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[550px] pointer-events-none opacity-40 blur-[130px]"
         style={{
-          background: 'radial-gradient(circle, rgba(229, 27, 35, 0.18) 0%, rgba(122, 13, 18, 0.05) 55%, transparent 80%)'
+          background: 'radial-gradient(circle, rgba(255, 48, 48, 0.20) 0%, rgba(122, 13, 18, 0.06) 55%, transparent 80%)'
         }}
       />
 
       {/* Grid Dot Matrix */}
       <div 
-        className="absolute inset-0 bg-grid-dots opacity-40"
+        className="absolute inset-0 bg-grid-dots opacity-45"
         style={{
-          maskImage: 'radial-gradient(circle at center, black 40%, transparent 85%)',
-          WebkitMaskImage: 'radial-gradient(circle at center, black 40%, transparent 85%)'
+          maskImage: 'radial-gradient(circle at center, black 50%, transparent 90%)',
+          WebkitMaskImage: 'radial-gradient(circle at center, black 50%, transparent 90%)'
         }}
       />
 
       {/* Cursor Glow Tracker (Desktop only) */}
       {!isMobile && !reducedMotion && mousePos.x > 0 && (
         <div
-          className="absolute w-[400px] h-[400px] rounded-full pointer-events-none transition-transform duration-75 ease-out opacity-25 blur-[90px]"
+          className="absolute w-[450px] h-[450px] rounded-full pointer-events-none transition-transform duration-75 ease-out opacity-25 blur-[95px]"
           style={{
-            transform: `translate(${mousePos.x - 200}px, ${mousePos.y - 200}px)`,
-            background: 'radial-gradient(circle, rgba(255, 43, 43, 0.25) 0%, transparent 70%)'
+            transform: `translate(${mousePos.x - 225}px, ${mousePos.y - 225}px)`,
+            background: 'radial-gradient(circle, rgba(255, 48, 48, 0.3) 0%, transparent 70%)'
           }}
         />
       )}
 
       {/* Canvas Particle Network */}
-      <canvas ref={canvasRef} className={`absolute inset-0 w-full h-full ${isMobile ? 'opacity-30' : 'opacity-45'}`} />
+      <canvas ref={canvasRef} className={`absolute inset-0 w-full h-full ${isMobile ? 'opacity-35' : 'opacity-55'}`} />
 
-      {/* Subtle Horizontal Scanlines */}
+      {/* Radar Sweep Line Overlay */}
+      {!reducedMotion && <div className="absolute inset-x-0 h-32 radar-sweep" />}
+
+      {/* Horizontal Scanlines */}
       <div className="absolute inset-0 scanline opacity-20" />
     </div>
   );

@@ -34,7 +34,7 @@
 
 /* Background & Lighting */
 .bg-grid-dots {
-  background-image: radial-gradient(rgba(229, 27, 35, 0.12) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(229, 27, 35, 0.15) 1.2px, transparent 1.2px);
   background-size: 24px 24px;
 }
 
@@ -53,7 +53,7 @@
   transform: translateY(-1px);
 }
 
-/* Scanline Effect */
+/* Scanline & Radar Sweep Effect */
 .scanline {
   background: linear-gradient(
     to bottom,
@@ -64,6 +64,23 @@
   );
   background-size: 100% 4px;
   pointer-events: none;
+}
+
+.radar-sweep {
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(255, 48, 48, 0.05) 50%,
+    rgba(255, 48, 48, 0.18) 98%,
+    rgba(255, 48, 48, 0.5) 100%
+  );
+  animation: radarSweep 10s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes radarSweep {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
 }
 
 /* Custom Scrollbar */
@@ -95,7 +112,8 @@
 /* Respect prefers-reduced-motion for CSS animations */
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse,
-  .animate-ping {
+  .animate-ping,
+  .radar-sweep {
     animation: none;
   }
 }
