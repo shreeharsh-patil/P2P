@@ -40,7 +40,11 @@ export class SessionManager {
     return { success: true, hostId: session.hostId };
   }
 
-  public handleSignal(senderPeerId: string, targetPeerId: string, payload: any) {
+  public getPeer(peerId: string): ConnectedPeer | undefined {
+    return this.peers.get(peerId);
+  }
+
+  public handleSignal(senderPeerId: string, targetPeerId: string, payload: any): boolean {
     const targetPeer = this.peers.get(targetPeerId);
     if (targetPeer && targetPeer.ws.readyState === WebSocket.OPEN) {
       const message: SignalMessage = {
@@ -49,7 +53,9 @@ export class SessionManager {
         payload
       };
       targetPeer.ws.send(JSON.stringify(message));
+      return true;
     }
+    return false;
   }
 
   public removePeer(peerId: string) {

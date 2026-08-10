@@ -8,7 +8,8 @@ export type SignalType =
   | 'SIGNAL'
   | 'ERROR'
   | 'PING'
-  | 'PONG';
+  | 'PONG'
+  | 'WELCOME';
 
 export interface SignalMessage {
   type: SignalType;

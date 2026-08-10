@@ -13,19 +13,16 @@ const server = createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 const sessionManager = new SessionManager();
 
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Dynamic ICE server config endpoint.
-// Set TURN_USERNAME and TURN_CREDENTIAL environment variables in your Render dashboard.
-// If not set, falls back to reliable public STUN + known-good free TURN servers.
-app.get('/api/ice-servers', (req, res) => {
-  const iceServers: RTCIceServer[] = [
+// Dynamic ICE server config endpoint
+app.get('/api/ice-servers', (_req, res) => {
+  const iceServers: any[] = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun.cloudflare.com:3478' },
-    // OpenRelay public TURN — always available, no account needed
     {
       urls: [
         'turn:openrelay.metered.ca:80',
@@ -38,7 +35,7 @@ app.get('/api/ice-servers', (req, res) => {
     }
   ];
 
-  // If custom TURN credentials are set via environment variables, add them too
+  // If custom TURN credentials are set via environment variables, add them
   const turnUrl = process.env.TURN_URL;
   const turnUsername = process.env.TURN_USERNAME;
   const turnCredential = process.env.TURN_CREDENTIAL;
@@ -54,12 +51,18 @@ app.get('/api/ice-servers', (req, res) => {
 });
 
 wss.on('connection', (ws: WebSocket) => {
-  let peerId: string = Math.random().toString(36).substring(2, 11);
+  const peerId: string = Math.random().toString(36).substring(2, 11);
   let currentSessionId: string | null = null;
+
+  console.log(`[WS] Peer connected: ${peerId}`);
+
+  // Send a welcome message so the client knows its peer ID immediately
+  ws.send(JSON.stringify({ type: 'WELCOME', peerId }));
 
   ws.on('message', (data: string) => {
     try {
       const msg: SignalMessage = JSON.parse(data.toString());
+      console.log(`[WS] ${peerId} -> ${msg.type}${msg.sessionId ? ` session=${msg.sessionId}` : ''}${msg.targetPeerId ? ` target=${msg.targetPeerId}` : ''}`);
 
       switch (msg.type) {
         case 'PING':
@@ -69,11 +72,12 @@ wss.on('connection', (ws: WebSocket) => {
         case 'CREATE_SESSION': {
           const sessionId = sessionManager.createSession(peerId, ws);
           currentSessionId = sessionId;
+          console.log(`[SESSION] Created: ${sessionId} by host ${peerId}`);
           ws.send(JSON.stringify({
             type: 'SESSION_CREATED',
             sessionId,
             peerId
-          } as SignalMessage));
+          }));
           break;
         }
 
@@ -84,28 +88,33 @@ wss.on('connection', (ws: WebSocket) => {
           }
           const result = sessionManager.joinSession(msg.sessionId, peerId, ws);
           if (!result.success) {
+            console.log(`[SESSION] Join FAILED: ${msg.sessionId} by ${peerId} — ${result.error}`);
             ws.send(JSON.stringify({ type: 'ERROR', error: result.error }));
             return;
           }
 
           currentSessionId = msg.sessionId;
+          console.log(`[SESSION] Joined: ${msg.sessionId} by client ${peerId}, host is ${result.hostId}`);
 
-          // Notify joiner with host's peer ID so WebRTC offer can be directed correctly
+          // Tell the joiner: "you joined, here's the host's peerId so you know who to expect the offer from"
           ws.send(JSON.stringify({
             type: 'SESSION_JOINED',
             sessionId: msg.sessionId,
             peerId,
             targetPeerId: result.hostId
-          } as SignalMessage));
+          }));
 
-          // Notify host that a client has joined
+          // Tell the host: "a client joined, here's their peerId — send them an offer"
           if (result.hostId) {
-            const hostPeer = (sessionManager as any).peers.get(result.hostId);
+            const hostPeer = sessionManager.getPeer(result.hostId);
             if (hostPeer && hostPeer.ws.readyState === WebSocket.OPEN) {
+              console.log(`[SESSION] Notifying host ${result.hostId} that client ${peerId} joined`);
               hostPeer.ws.send(JSON.stringify({
                 type: 'PEER_JOINED',
                 peerId
-              } as SignalMessage));
+              }));
+            } else {
+              console.warn(`[SESSION] Host peer ${result.hostId} not found or disconnected!`);
             }
           }
           break;
@@ -113,24 +122,26 @@ wss.on('connection', (ws: WebSocket) => {
 
         case 'SIGNAL': {
           if (msg.targetPeerId && msg.payload) {
-            sessionManager.handleSignal(peerId, msg.targetPeerId, msg.payload);
+            const relayed = sessionManager.handleSignal(peerId, msg.targetPeerId, msg.payload);
+            if (!relayed) {
+              console.warn(`[SIGNAL] Failed to relay from ${peerId} to ${msg.targetPeerId} — target not found`);
+            }
           }
           break;
         }
       }
     } catch (err) {
-      console.error('Error processing signaling message:', err);
+      console.error('[WS] Error processing message:', err);
     }
   });
 
   ws.on('close', () => {
-    if (currentSessionId) {
-      sessionManager.removePeer(peerId);
-    }
+    console.log(`[WS] Peer disconnected: ${peerId} (session: ${currentSessionId})`);
+    sessionManager.removePeer(peerId);
   });
 
   ws.on('error', (err) => {
-    console.error(`WebSocket error for peer ${peerId}:`, err);
+    console.error(`[WS] Error for peer ${peerId}:`, err);
     sessionManager.removePeer(peerId);
   });
 });
