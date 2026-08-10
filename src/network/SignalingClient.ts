@@ -27,13 +27,13 @@ export class SignalingClient {
       this.serverUrl = `${protocol}//${hostname}:4050/ws`;
       this.fallbackUrls = [
         `${protocol}//${window.location.host}/ws`,
-        `wss://shree-signaling.onrender.com/ws`
+        `wss://p2p-9ewe.onrender.com/ws`
       ];
     } else {
-      // Hosted on Vercel or cloud platform: default to dedicated cloud signaling server
-      this.serverUrl = `wss://shree-signaling.onrender.com/ws`;
+      // Hosted on Vercel or cloud platform: default to your Render signaling backend URL
+      this.serverUrl = `wss://p2p-9ewe.onrender.com/ws`;
       this.fallbackUrls = [
-        `wss://p2p-signaling-server.onrender.com/ws`,
+        `wss://shree-signaling.onrender.com/ws`,
         `${protocol}//${hostname}:4050/ws`
       ];
     }
