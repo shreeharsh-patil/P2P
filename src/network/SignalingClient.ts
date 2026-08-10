@@ -5,7 +5,6 @@ export type SignalHandler = (msg: SignalMessage) => void;
 export class SignalingClient {
   private ws: WebSocket | null = null;
   private serverUrl: string;
-  private fallbackUrls: string[] = [];
   private handlers: Map<SignalType | 'ALL', Set<SignalHandler>> = new Map();
   private isConnected: boolean = false;
   private reconnectTimer: any = null;
@@ -25,33 +24,20 @@ export class SignalingClient {
       this.serverUrl = envUrl;
     } else if (isLocal) {
       this.serverUrl = `${protocol}//${hostname}:4050/ws`;
-      this.fallbackUrls = [
-        `${protocol}//${window.location.host}/ws`,
-        `wss://p2p-9ewe.onrender.com/ws`
-      ];
     } else {
-      // Hosted on Vercel or cloud platform: default to your Render signaling backend URL
+      // Direct production URL to user's Render backend
       this.serverUrl = `wss://p2p-9ewe.onrender.com/ws`;
-      this.fallbackUrls = [
-        `wss://shree-signaling.onrender.com/ws`,
-        `${protocol}//${hostname}:4050/ws`
-      ];
     }
   }
 
-  public connect(urlIndex: number = 0): Promise<void> {
+  public connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const targetUrl = urlIndex === 0 ? this.serverUrl : this.fallbackUrls[urlIndex - 1];
-        if (!targetUrl) {
-          reject(new Error('All signaling connection endpoints exhausted'));
-          return;
-        }
-
-        console.log(`Connecting to signaling server (${urlIndex}): ${targetUrl}`);
-        this.ws = new WebSocket(targetUrl);
+        console.log(`Connecting to signaling server: ${this.serverUrl}`);
+        this.ws = new WebSocket(this.serverUrl);
 
         this.ws.onopen = () => {
+          console.log(`Signaling WebSocket CONNECTED: ${this.serverUrl}`);
           this.isConnected = true;
           if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
@@ -86,14 +72,11 @@ export class SignalingClient {
         };
 
         this.ws.onerror = (err) => {
-          console.error(`Signaling WebSocket error for ${targetUrl}`, err);
+          console.error(`Signaling WebSocket connection attempt failed for ${this.serverUrl}`, err);
           if (!this.isConnected) {
-            if (urlIndex < this.fallbackUrls.length) {
-              console.log(`Attempting fallback signaling URL #${urlIndex + 1}...`);
-              this.connect(urlIndex + 1).then(resolve).catch(reject);
-            } else {
-              reject(err);
-            }
+            // Render free tier backend may be waking up from spin-down cold start; schedule retry
+            this.scheduleReconnect();
+            reject(err);
           }
         };
       } catch (e) {
@@ -147,9 +130,9 @@ export class SignalingClient {
   private scheduleReconnect(): void {
     if (!this.reconnectTimer) {
       this.reconnectTimer = setTimeout(() => {
-        console.log('Attempting signaling reconnect...');
+        console.log(`Re-attempting connection to signaling server: ${this.serverUrl}`);
         this.connect().catch(() => {});
-      }, 3000);
+      }, 2500);
     }
   }
 
