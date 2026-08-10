@@ -19,7 +19,7 @@ import { TransferManager } from './engine/TransferManager';
 import { TransferItem } from './engine/types';
 import { sounds } from './utils/audio';
 
-type ViewState = 'landing' | 'host' | 'join' | 'waiting' | 'connected';
+type ViewState = 'landing' | 'host' | 'join' | 'waiting' | 'connected' | 'failed';
 
 export const App: React.FC = () => {
   const signalingRef = useRef<SignalingClient | null>(null);
@@ -66,10 +66,12 @@ export const App: React.FC = () => {
           sounds.playConnect();
           showToast('success', 'DIRECT P2P DATACHANNEL CONNECTED');
           setViewState('connected');
-        } else if (state === 'failed' || state === 'closed') {
-          showToast('error', 'WEBRTC CONNECTION FAILED — TRY AGAIN');
-          setViewState('landing');
-          setSessionId(null);
+        } else if (state === 'failed') {
+          showToast('error', 'WEBRTC NEGOTIATION FAILED');
+          setViewState('failed');
+        } else if (state === 'disconnected') {
+          showToast('error', 'PEER DISCONNECTED');
+          setViewState('failed');
         }
       },
       onTextMessage: (text, senderId, timestamp) => {
@@ -268,16 +270,13 @@ export const App: React.FC = () => {
               onDisconnect={handleDisconnect}
             />
 
-          /* ============ WAITING / HANDSHAKE IN PROGRESS ============ */
           ) : viewState === 'waiting' ? (
             <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-fade-in-up font-mono">
-              {/* Spinner */}
               <div className="relative w-20 h-20">
                 <div className="absolute inset-0 rounded-full border-2 border-[rgba(255,48,48,0.15)]" />
                 <div className="absolute inset-0 rounded-full border-t-2 border-[#ff3030] animate-spin" />
                 <div className="absolute inset-[6px] rounded-full border-t-2 border-[rgba(255,48,48,0.4)] animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
               </div>
-
               <div className="text-center space-y-2">
                 <p className="text-sm text-[#ff3030] tracking-[0.25em] uppercase font-bold animate-pulse">
                   ESTABLISHING ENCRYPTED TUNNEL
@@ -288,10 +287,9 @@ export const App: React.FC = () => {
                   </p>
                 )}
                 <p className="text-xs text-[#444] mt-4 max-w-xs mx-auto leading-relaxed">
-                  Negotiating WebRTC DataChannel over<br />STUN servers. This may take a few seconds.
+                  Negotiating WebRTC DataChannel via STUN/TURN.<br />This may take 10–30 seconds.
                 </p>
               </div>
-
               <button
                 onClick={handleDisconnect}
                 className="mt-4 px-5 py-2 text-xs font-mono text-rose-400 border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 uppercase tracking-wider transition-colors"
@@ -299,6 +297,41 @@ export const App: React.FC = () => {
                 CANCEL
               </button>
             </div>
+
+          /* ============ FAILED / RETRY ============ */
+          ) : viewState === 'failed' ? (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-fade-in-up font-mono">
+              <div className="w-16 h-16 flex items-center justify-center border-2 border-rose-500/50 rounded-full text-rose-400 text-3xl">
+                ✕
+              </div>
+              <div className="text-center space-y-3">
+                <p className="text-sm text-rose-400 tracking-[0.25em] uppercase font-bold">
+                  CONNECTION FAILED
+                </p>
+                <p className="text-xs text-[#555] max-w-xs mx-auto leading-relaxed">
+                  WebRTC could not establish a direct channel.<br />
+                  This can happen if both devices are on strict NAT networks.<br />
+                  Try again — TURN relay servers will be used.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    handleDisconnect();
+                    setTimeout(() => handleCreateSession(), 100);
+                  }}
+                  className="px-5 py-2 text-xs font-mono text-[#ff3030] border border-[#ff3030]/40 bg-[#ff3030]/10 hover:bg-[#ff3030]/20 uppercase tracking-wider transition-colors"
+                >
+                  NEW SESSION
+                </button>
+                <button
+                  onClick={handleDisconnect}
+                  className="px-5 py-2 text-xs font-mono text-[#888] border border-[#333] hover:border-[#555] uppercase tracking-wider transition-colors"
+                >
+                  GO HOME
+                </button>
+              </div>
+            </div>      
 
           /* ============ HOST SCREEN ============ */
           ) : viewState === 'host' && sessionId ? (

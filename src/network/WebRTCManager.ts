@@ -11,6 +11,43 @@ export interface WebRTCEvents {
   onChannelReady?: () => void;
 }
 
+// Fetch ICE servers (STUN + TURN) from the signaling backend.
+// Falls back to Google STUN only if the server is unreachable.
+async function fetchIceServers(): Promise<RTCIceServer[]> {
+  const signalingBase = import.meta.env.VITE_SIGNALING_URL
+    ? import.meta.env.VITE_SIGNALING_URL.replace(/^wss?:\/\//, 'https://').replace('/ws', '')
+    : (() => {
+        const hostname = window.location.hostname;
+        const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+        return isLocal
+          ? `http://${hostname}:4050`
+          : 'https://p2p-9ewe.onrender.com';
+      })();
+
+  try {
+    const res = await fetch(`${signalingBase}/api/ice-servers`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    console.log('[WebRTC] Fetched ICE servers from backend:', data.iceServers?.length);
+    return data.iceServers;
+  } catch (e) {
+    console.warn('[WebRTC] Could not fetch ICE servers from backend, using fallback STUN', e);
+    return [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      {
+        urls: [
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443',
+          'turn:openrelay.metered.ca:443?transport=tcp',
+        ],
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      }
+    ];
+  }
+}
+
 export class WebRTCManager {
   private peerConnection: RTCPeerConnection | null = null;
   private signaling: SignalingClient;
@@ -24,73 +61,30 @@ export class WebRTCManager {
   private events: WebRTCEvents = {};
   public connectionState: WebRTCState = 'new';
   public isInitiator: boolean = false;
-
-  // ICE configuration with STUN + free public TURN relay servers
-  // TURN servers ensure connection works even behind symmetric NAT / mobile networks
-  private rtcConfig: RTCConfiguration = {
-    iceServers: [
-      // Google STUN
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      // Cloudflare STUN
-      { urls: 'stun:stun.cloudflare.com:3478' },
-      // Free OpenRelay TURN servers (UDP + TCP fallback)
-      {
-        urls: [
-          'turn:openrelay.metered.ca:80',
-          'turn:openrelay.metered.ca:443',
-          'turn:openrelay.metered.ca:443?transport=tcp',
-        ],
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-      },
-      // Free Metered TURN
-      {
-        urls: 'turn:a.relay.metered.ca:80',
-        username: 'e499486ca705bdb96c9c6f98',
-        credential: 'IbJHFVBBg/eoWjQP'
-      },
-      {
-        urls: 'turn:a.relay.metered.ca:80?transport=tcp',
-        username: 'e499486ca705bdb96c9c6f98',
-        credential: 'IbJHFVBBg/eoWjQP'
-      },
-      {
-        urls: 'turn:a.relay.metered.ca:443',
-        username: 'e499486ca705bdb96c9c6f98',
-        credential: 'IbJHFVBBg/eoWjQP'
-      },
-      {
-        urls: 'turn:a.relay.metered.ca:443?transport=tcp',
-        username: 'e499486ca705bdb96c9c6f98',
-        credential: 'IbJHFVBBg/eoWjQP'
-      }
-    ],
-    iceCandidatePoolSize: 10
-  };
+  private iceServers: RTCIceServer[] = [];
 
   constructor(signaling: SignalingClient, events: WebRTCEvents = {}) {
     this.signaling = signaling;
     this.events = events;
     this.setupSignalingListeners();
+    // Pre-fetch ICE servers in the background so they're ready when needed
+    fetchIceServers().then(servers => { this.iceServers = servers; });
   }
 
   public setEvents(events: WebRTCEvents) {
     this.events = { ...this.events, ...events };
   }
 
-  public setTargetPeerId(targetPeerId: string) {
-    this.targetPeerId = targetPeerId;
+  public setTargetPeerId(peerId: string) {
+    this.targetPeerId = peerId;
     this.flushOutgoingIceCandidates();
   }
 
   private updateState(state: WebRTCState) {
-    if (this.connectionState === state) return; // avoid duplicate events
+    if (this.connectionState === state) return;
     this.connectionState = state;
     console.log(`[WebRTC] State → ${state}`);
-    if (this.events.onStateChange) {
-      this.events.onStateChange(state);
-    }
+    this.events.onStateChange?.(state);
   }
 
   private setupSignalingListeners() {
@@ -115,9 +109,14 @@ export class WebRTCManager {
   public async initiateConnection(targetPeerId: string): Promise<void> {
     this.isInitiator = true;
     this.setTargetPeerId(targetPeerId);
+
+    // Ensure ICE servers are loaded before creating offer
+    if (this.iceServers.length === 0) {
+      this.iceServers = await fetchIceServers();
+    }
+
     this.createPeerConnection();
 
-    // Host creates both DataChannels
     this.controlChannel = this.peerConnection!.createDataChannel('controlChannel', { ordered: true });
     this.fileChannel = this.peerConnection!.createDataChannel('fileChannel', { ordered: true });
     this.setupControlChannel(this.controlChannel);
@@ -133,38 +132,41 @@ export class WebRTCManager {
   private createPeerConnection() {
     if (this.peerConnection) return;
 
-    this.peerConnection = new RTCPeerConnection(this.rtcConfig);
+    const config: RTCConfiguration = {
+      iceServers: this.iceServers.length > 0 ? this.iceServers : [
+        { urls: 'stun:stun.l.google.com:19302' },
+        {
+          urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443?transport=tcp'],
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        }
+      ],
+      iceCandidatePoolSize: 10
+    };
+
+    console.log(`[WebRTC] Creating PeerConnection with ${config.iceServers?.length} ICE servers`);
+    this.peerConnection = new RTCPeerConnection(config);
     this.updateState('connecting');
 
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        const candidateJson = event.candidate.toJSON();
+        const json = event.candidate.toJSON();
         const target = this.targetPeerId || this.signaling.targetPeerId;
         if (target) {
-          this.signaling.sendSignal(target, { candidate: candidateJson });
+          this.signaling.sendSignal(target, { candidate: json });
         } else {
-          this.pendingOutgoingIceCandidates.push(candidateJson);
+          this.pendingOutgoingIceCandidates.push(json);
         }
       }
     };
 
-    // PRIMARY: peerConnection state drives our connected state
     this.peerConnection.onconnectionstatechange = () => {
-      const pc = this.peerConnection;
-      if (!pc) return;
-      const state = pc.connectionState;
-      console.log(`[WebRTC] PeerConnection state: ${state}`);
-
+      const state = this.peerConnection?.connectionState;
+      console.log(`[WebRTC] PeerConnection: ${state}`);
       if (state === 'connected') {
-        // Peer connection layer is up — set connected immediately
         this.updateState('connected');
       } else if (state === 'failed') {
-        console.warn('[WebRTC] Connection failed — attempting ICE restart');
         this.updateState('failed');
-        // Try ICE restart if we're the initiator
-        if (this.isInitiator && this.targetPeerId) {
-          this.iceRestart();
-        }
       } else if (state === 'disconnected') {
         this.updateState('disconnected');
       } else if (state === 'closed') {
@@ -172,44 +174,25 @@ export class WebRTCManager {
       }
     };
 
-    // ICE connection state for additional diagnostics
     this.peerConnection.oniceconnectionstatechange = () => {
-      const pc = this.peerConnection;
-      if (!pc) return;
-      console.log(`[WebRTC] ICE connection state: ${pc.iceConnectionState}`);
+      console.log(`[WebRTC] ICE: ${this.peerConnection?.iceConnectionState}`);
     };
 
-    // ICE gathering state
     this.peerConnection.onicegatheringstatechange = () => {
-      const pc = this.peerConnection;
-      if (!pc) return;
-      console.log(`[WebRTC] ICE gathering state: ${pc.iceGatheringState}`);
+      console.log(`[WebRTC] Gathering: ${this.peerConnection?.iceGatheringState}`);
     };
 
-    // Client receives channels from host
     this.peerConnection.ondatachannel = (event) => {
-      const channel = event.channel;
-      console.log(`[WebRTC] DataChannel received: ${channel.label}`);
-      if (channel.label === 'controlChannel') {
-        this.controlChannel = channel;
-        this.setupControlChannel(channel);
-      } else if (channel.label === 'fileChannel') {
-        this.fileChannel = channel;
-        this.setupFileChannel(channel);
+      const ch = event.channel;
+      console.log(`[WebRTC] DataChannel received: ${ch.label}`);
+      if (ch.label === 'controlChannel') {
+        this.controlChannel = ch;
+        this.setupControlChannel(ch);
+      } else if (ch.label === 'fileChannel') {
+        this.fileChannel = ch;
+        this.setupFileChannel(ch);
       }
     };
-  }
-
-  private async iceRestart() {
-    if (!this.peerConnection || !this.targetPeerId) return;
-    try {
-      console.log('[WebRTC] ICE restart initiated');
-      const offer = await this.peerConnection.createOffer({ iceRestart: true });
-      await this.peerConnection.setLocalDescription(offer);
-      this.signaling.sendSignal(this.targetPeerId, { type: 'offer', sdp: offer });
-    } catch (e) {
-      console.error('[WebRTC] ICE restart failed', e);
-    }
   }
 
   private flushOutgoingIceCandidates() {
@@ -217,22 +200,24 @@ export class WebRTCManager {
     if (target && this.pendingOutgoingIceCandidates.length > 0) {
       console.log(`[WebRTC] Flushing ${this.pendingOutgoingIceCandidates.length} buffered ICE candidates`);
       while (this.pendingOutgoingIceCandidates.length > 0) {
-        const candidate = this.pendingOutgoingIceCandidates.shift();
-        if (candidate) {
-          this.signaling.sendSignal(target, { candidate });
-        }
+        const c = this.pendingOutgoingIceCandidates.shift();
+        if (c) this.signaling.sendSignal(target, { candidate: c });
       }
     }
   }
 
   private async handleOffer(sdp: RTCSessionDescriptionInit, remotePeerId: string) {
-    console.log('[WebRTC] Received offer, creating answer...');
+    console.log('[WebRTC] Handling offer...');
     this.isInitiator = false;
     this.setTargetPeerId(remotePeerId);
-    this.createPeerConnection();
 
+    if (this.iceServers.length === 0) {
+      this.iceServers = await fetchIceServers();
+    }
+
+    this.createPeerConnection();
     await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(sdp));
-    this.processPendingIncomingIceCandidates();
+    await this.processPendingIncomingIceCandidates();
 
     const answer = await this.peerConnection!.createAnswer();
     await this.peerConnection!.setLocalDescription(answer);
@@ -242,16 +227,16 @@ export class WebRTCManager {
   }
 
   private async handleAnswer(sdp: RTCSessionDescriptionInit) {
-    console.log('[WebRTC] Received answer, setting remote description...');
+    console.log('[WebRTC] Handling answer...');
     if (this.peerConnection) {
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
-      this.processPendingIncomingIceCandidates();
+      await this.processPendingIncomingIceCandidates();
       this.flushOutgoingIceCandidates();
     }
   }
 
   private async handleIceCandidate(candidate: RTCIceCandidateInit) {
-    if (this.peerConnection && this.peerConnection.remoteDescription) {
+    if (this.peerConnection?.remoteDescription) {
       try {
         await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
       } catch (e) {
@@ -263,61 +248,55 @@ export class WebRTCManager {
   }
 
   private async processPendingIncomingIceCandidates() {
-    if (this.peerConnection && this.peerConnection.remoteDescription) {
-      const pending = [...this.pendingIncomingIceCandidates];
-      this.pendingIncomingIceCandidates = [];
-      for (const candidate of pending) {
-        try {
-          await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (e) {
-          console.warn('[WebRTC] Failed to add buffered ICE candidate', e);
-        }
+    if (!this.peerConnection?.remoteDescription) return;
+    const pending = [...this.pendingIncomingIceCandidates];
+    this.pendingIncomingIceCandidates = [];
+    for (const c of pending) {
+      try {
+        await this.peerConnection.addIceCandidate(new RTCIceCandidate(c));
+      } catch (e) {
+        console.warn('[WebRTC] Failed to add buffered ICE candidate', e);
       }
     }
   }
 
-  private setupControlChannel(channel: RTCDataChannel) {
-    channel.onopen = () => {
-      console.log('[WebRTC] Control DataChannel OPEN');
-      if (this.events.onChannelReady) this.events.onChannelReady();
-      // Ensure state is marked connected when channels open (belt + suspenders)
+  private setupControlChannel(ch: RTCDataChannel) {
+    ch.onopen = () => {
+      console.log('[WebRTC] Control channel OPEN');
       this.updateState('connected');
+      this.events.onChannelReady?.();
     };
-
-    channel.onmessage = (event) => {
+    ch.onmessage = (event) => {
       try {
         const msg: ControlMessage = JSON.parse(event.data);
-        if (msg.type === 'TEXT_MESSAGE' && msg.textPayload && this.events.onTextMessage) {
-          this.events.onTextMessage(msg.textPayload, this.targetPeerId || 'Peer', msg.timestamp || Date.now());
-        } else if (this.events.onControlMessage) {
-          this.events.onControlMessage(msg);
+        if (msg.type === 'TEXT_MESSAGE' && msg.textPayload) {
+          this.events.onTextMessage?.(msg.textPayload, this.targetPeerId || 'Peer', msg.timestamp || Date.now());
+        } else {
+          this.events.onControlMessage?.(msg);
         }
       } catch (e) {
-        console.error('[WebRTC] Error parsing control message', e);
+        console.error('[WebRTC] Control message parse error', e);
       }
     };
-
-    channel.onerror = (e) => console.error('[WebRTC] Control channel error', e);
+    ch.onerror = (e) => console.error('[WebRTC] Control channel error', e);
   }
 
-  private setupFileChannel(channel: RTCDataChannel) {
-    channel.binaryType = 'arraybuffer';
-    channel.onopen = () => {
-      console.log('[WebRTC] File DataChannel OPEN');
+  private setupFileChannel(ch: RTCDataChannel) {
+    ch.binaryType = 'arraybuffer';
+    ch.onopen = () => {
+      console.log('[WebRTC] File channel OPEN');
       this.updateState('connected');
     };
-
-    channel.onmessage = (event) => {
-      if (event.data instanceof ArrayBuffer && this.events.onFileChunk) {
-        this.events.onFileChunk(event.data);
+    ch.onmessage = (event) => {
+      if (event.data instanceof ArrayBuffer) {
+        this.events.onFileChunk?.(event.data);
       }
     };
-
-    channel.onerror = (e) => console.error('[WebRTC] File channel error', e);
+    ch.onerror = (e) => console.error('[WebRTC] File channel error', e);
   }
 
   public sendControlMessage(msg: ControlMessage): boolean {
-    if (this.controlChannel && this.controlChannel.readyState === 'open') {
+    if (this.controlChannel?.readyState === 'open') {
       this.controlChannel.send(JSON.stringify(msg));
       return true;
     }
@@ -325,22 +304,20 @@ export class WebRTCManager {
   }
 
   public sendTextMessage(text: string): boolean {
-    return this.sendControlMessage({
-      type: 'TEXT_MESSAGE',
-      textPayload: text,
-      timestamp: Date.now()
-    });
+    return this.sendControlMessage({ type: 'TEXT_MESSAGE', textPayload: text, timestamp: Date.now() });
   }
 
   public areChannelsOpen(): boolean {
-    return !!this.controlChannel && this.controlChannel.readyState === 'open'
-      && !!this.fileChannel && this.fileChannel.readyState === 'open';
+    return this.controlChannel?.readyState === 'open' && this.fileChannel?.readyState === 'open';
   }
 
   public close(): void {
-    if (this.controlChannel) { this.controlChannel.close(); this.controlChannel = null; }
-    if (this.fileChannel) { this.fileChannel.close(); this.fileChannel = null; }
-    if (this.peerConnection) { this.peerConnection.close(); this.peerConnection = null; }
+    this.controlChannel?.close();
+    this.fileChannel?.close();
+    this.peerConnection?.close();
+    this.controlChannel = null;
+    this.fileChannel = null;
+    this.peerConnection = null;
     this.pendingIncomingIceCandidates = [];
     this.pendingOutgoingIceCandidates = [];
     this.targetPeerId = null;
