@@ -5,6 +5,7 @@ export type SignalHandler = (msg: SignalMessage) => void;
 export class SignalingClient {
   private ws: WebSocket | null = null;
   private serverUrl: string;
+  private fallbackUrls: string[] = [];
   private handlers: Map<SignalType | 'ALL', Set<SignalHandler>> = new Map();
   private isConnected: boolean = false;
   private reconnectTimer: any = null;
@@ -13,22 +14,42 @@ export class SignalingClient {
   public targetPeerId: string | null = null;
 
   constructor(serverUrl?: string) {
+    const envUrl = import.meta.env.VITE_SIGNALING_URL;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const hostname = window.location.hostname || 'localhost';
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.endsWith('.local');
+
     if (serverUrl) {
       this.serverUrl = serverUrl;
-    } else {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const hostname = window.location.hostname || 'localhost';
-      // Dynamically target port 4050 on current hostname (works for localhost & local network IPs)
+    } else if (envUrl) {
+      this.serverUrl = envUrl;
+    } else if (isLocal) {
       this.serverUrl = `${protocol}//${hostname}:4050/ws`;
+      this.fallbackUrls = [
+        `${protocol}//${window.location.host}/ws`,
+        `wss://shree-signaling.onrender.com/ws`
+      ];
+    } else {
+      // Hosted on Vercel or cloud platform: default to dedicated cloud signaling server
+      this.serverUrl = `wss://shree-signaling.onrender.com/ws`;
+      this.fallbackUrls = [
+        `wss://p2p-signaling-server.onrender.com/ws`,
+        `${protocol}//${hostname}:4050/ws`
+      ];
     }
   }
 
-  public connect(): Promise<void> {
+  public connect(urlIndex: number = 0): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        let wsUrl = this.serverUrl;
+        const targetUrl = urlIndex === 0 ? this.serverUrl : this.fallbackUrls[urlIndex - 1];
+        if (!targetUrl) {
+          reject(new Error('All signaling connection endpoints exhausted'));
+          return;
+        }
 
-        this.ws = new WebSocket(wsUrl);
+        console.log(`Connecting to signaling server (${urlIndex}): ${targetUrl}`);
+        this.ws = new WebSocket(targetUrl);
 
         this.ws.onopen = () => {
           this.isConnected = true;
@@ -65,25 +86,14 @@ export class SignalingClient {
         };
 
         this.ws.onerror = (err) => {
-          console.error('Signaling WebSocket error', err);
+          console.error(`Signaling WebSocket error for ${targetUrl}`, err);
           if (!this.isConnected) {
-            // Fallback attempt via relative Vite proxy /ws if direct 4050 failed
-            if (wsUrl.includes(':4050/ws')) {
-              const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-              const proxyUrl = `${protocol}//${window.location.host}/ws`;
-              console.log('Retrying signaling connection via proxy:', proxyUrl);
-              try {
-                const proxyWs = new WebSocket(proxyUrl);
-                proxyWs.onopen = () => {
-                  this.ws = proxyWs;
-                  this.isConnected = true;
-                  resolve();
-                };
-                proxyWs.onerror = (pErr) => reject(pErr);
-                return;
-              } catch (e) {}
+            if (urlIndex < this.fallbackUrls.length) {
+              console.log(`Attempting fallback signaling URL #${urlIndex + 1}...`);
+              this.connect(urlIndex + 1).then(resolve).catch(reject);
+            } else {
+              reject(err);
             }
-            reject(err);
           }
         };
       } catch (e) {
