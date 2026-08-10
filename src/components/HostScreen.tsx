@@ -50,7 +50,7 @@ export const HostScreen: React.FC<HostScreenProps> = ({
     : sessionId;
 
   return (
-    <div className="w-full max-w-[960px] mx-auto px-4 sm:px-6 space-y-6 font-mono">
+    <div className="w-full max-w-[960px] mx-auto px-4 sm:px-6 space-y-6 font-mono animate-fade-in-up">
       {/* PAGE HEADER */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -73,7 +73,7 @@ export const HostScreen: React.FC<HostScreenProps> = ({
       </div>
 
       {/* MAIN SESSION PANEL */}
-      <div className="relative bg-[rgba(15,15,15,0.92)] border border-[rgba(255,255,255,0.08)] border-l-2 border-l-[#ff3030] rounded-xs p-6 sm:p-10 text-center space-y-8 shadow-2xl overflow-hidden">
+      <div className="relative bg-[rgba(15,15,15,0.92)] border border-[rgba(255,255,255,0.08)] border-l-2 border-l-[#ff3030] rounded-xs p-6 sm:p-10 text-center space-y-8 shadow-2xl overflow-hidden animate-scale-in">
         {/* Technical Corner Accents */}
         <div className="absolute top-2 left-2 w-2 h-2 border-t border-l border-[#ff3030]/60 pointer-events-none" />
         <div className="absolute top-2 right-2 w-2 h-2 border-t border-r border-[#ff3030]/60 pointer-events-none" />
@@ -85,7 +85,7 @@ export const HostScreen: React.FC<HostScreenProps> = ({
           SCAN ON THE OTHER DEVICE
         </div>
 
-        {/* QR CODE CONTAINER */}
+        {/* QR CODE CONTAINER WITH GLOW PULSE */}
         <div className="relative inline-block my-2">
           {/* Red Technical Corner Accent */}
           <div className="absolute -top-2 -left-2 w-4 h-4 border-t-2 border-l-2 border-[#ff3030] pointer-events-none" />
@@ -93,7 +93,7 @@ export const HostScreen: React.FC<HostScreenProps> = ({
           <div className="absolute -bottom-2 -left-2 w-4 h-4 border-b-2 border-l-2 border-[#ff3030] pointer-events-none" />
           <div className="absolute -bottom-2 -right-2 w-4 h-4 border-b-2 border-r-2 border-[#ff3030] pointer-events-none" />
 
-          <div className="bg-white p-4 sm:p-5 rounded-xs inline-block shadow-xl border border-white/20">
+          <div className="bg-white p-4 sm:p-5 rounded-xs inline-block shadow-xl border border-white/20 animate-glow-pulse">
             {!isExpired ? (
               <QRCodeSVG
                 value={shareUrl}
@@ -129,7 +129,7 @@ export const HostScreen: React.FC<HostScreenProps> = ({
             <button
               onClick={handleCopyCode}
               disabled={isExpired}
-              className="px-4 py-2 text-xs font-mono font-bold bg-[#080808] hover:bg-[#141418] disabled:opacity-30 border border-[rgba(255,255,255,0.12)] hover:border-[#ff3030] text-[#f2f2f2] rounded-xs flex items-center gap-2 transition-all"
+              className="px-4 py-2 text-xs font-mono font-bold bg-[#080808] hover:bg-[#141418] disabled:opacity-30 border border-[rgba(255,255,255,0.12)] hover:border-[#ff3030] text-[#f2f2f2] rounded-xs flex items-center gap-2 transition-all active:scale-95"
             >
               {copied ? (
                 <>
@@ -146,7 +146,7 @@ export const HostScreen: React.FC<HostScreenProps> = ({
 
             <button
               onClick={onRegenerateSession}
-              className="px-4 py-2 text-xs font-mono font-bold bg-[#080808] hover:bg-[#141418] border border-[rgba(255,255,255,0.12)] hover:border-[#ff3030] text-[#a0a0a0] hover:text-[#f2f2f2] rounded-xs flex items-center gap-2 transition-all"
+              className="px-4 py-2 text-xs font-mono font-bold bg-[#080808] hover:bg-[#141418] border border-[rgba(255,255,255,0.12)] hover:border-[#ff3030] text-[#a0a0a0] hover:text-[#f2f2f2] rounded-xs flex items-center gap-2 transition-all active:scale-95"
             >
               <RefreshCw className="w-3.5 h-3.5 text-[#a0a0a0]" />
               <span>REGENERATE</span>
@@ -163,7 +163,7 @@ export const HostScreen: React.FC<HostScreenProps> = ({
           ) : (
             <button
               onClick={onRegenerateSession}
-              className="px-4 py-2 bg-[#ff3030] hover:bg-[#e31e24] text-white font-mono font-bold text-xs rounded-xs tracking-wider uppercase"
+              className="px-4 py-2 bg-[#ff3030] hover:bg-[#e31e24] text-white font-mono font-bold text-xs rounded-xs tracking-wider uppercase animate-glow-pulse active:scale-95"
             >
               CREATE NEW SESSION
             </button>
@@ -181,7 +181,7 @@ export const HostScreen: React.FC<HostScreenProps> = ({
           </button>
 
           {showAdvanced && (
-            <div className="mt-4 p-4 bg-[#080808] border border-[rgba(255,255,255,0.06)] rounded-xs grid grid-cols-2 sm:grid-cols-3 gap-3 text-left text-[11px] font-mono">
+            <div className="mt-4 p-4 bg-[#080808] border border-[rgba(255,255,255,0.06)] rounded-xs grid grid-cols-2 sm:grid-cols-3 gap-3 text-left text-[11px] font-mono animate-fade-in-up">
               <div>
                 <span className="text-[#666666] block text-[9px] uppercase">Protocol</span>
                 <span className="text-[#f2f2f2]">WebRTC</span>

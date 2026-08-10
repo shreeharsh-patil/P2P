@@ -99,21 +99,88 @@
   background: var(--accent-crimson);
 }
 
-/* Animations */
+/* Keyframe Animations */
 @keyframes redPulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.96); }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(255, 48, 48, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 35px rgba(255, 48, 48, 0.55);
+  }
+}
+
+@keyframes progressStripes {
+  0% { background-position: 0 0; }
+  100% { background-position: 40px 0; }
 }
 
 .animate-red-pulse {
   animation: redPulse 2.5s infinite ease-in-out;
 }
 
+.animate-fade-in-up {
+  animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-glow-pulse {
+  animation: glowPulse 3s infinite ease-in-out;
+}
+
+.animate-striped-progress {
+  background-image: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.2) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0.2) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 24px 24px;
+  animation: progressStripes 1.2s linear infinite;
+}
+
 /* Respect prefers-reduced-motion for CSS animations */
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse,
   .animate-ping,
-  .radar-sweep {
+  .radar-sweep,
+  .animate-fade-in-up,
+  .animate-scale-in,
+  .animate-glow-pulse,
+  .animate-striped-progress {
     animation: none;
   }
 }
