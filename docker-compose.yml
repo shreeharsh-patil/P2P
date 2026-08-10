@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  shree-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shree_p2p_app
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - NODE_ENV=production
+    restart: unless-stopped
