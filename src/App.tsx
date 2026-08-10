@@ -19,6 +19,8 @@ import { TransferManager } from './engine/TransferManager';
 import { TransferItem } from './engine/types';
 import { sounds } from './utils/audio';
 
+type ViewState = 'landing' | 'host' | 'join' | 'waiting' | 'connected';
+
 export const App: React.FC = () => {
   const signalingRef = useRef<SignalingClient | null>(null);
   const rtcRef = useRef<WebRTCManager | null>(null);
@@ -27,8 +29,7 @@ export const App: React.FC = () => {
   const [signalingConnected, setSignalingConnected] = useState(false);
   const [webrtcState, setWebrtcState] = useState<WebRTCState>('new');
   const [sessionId, setSessionId] = useState<string | null>(null);
-
-  const [viewState, setViewState] = useState<'landing' | 'host' | 'join'>('landing');
+  const [viewState, setViewState] = useState<ViewState>('landing');
 
   const [queue, setQueue] = useState<TransferItem[]>([]);
   const [textMessages, setTextMessages] = useState<TextMessageItem[]>([]);
@@ -64,6 +65,11 @@ export const App: React.FC = () => {
         if (state === 'connected') {
           sounds.playConnect();
           showToast('success', 'DIRECT P2P DATACHANNEL CONNECTED');
+          setViewState('connected');
+        } else if (state === 'failed' || state === 'closed') {
+          showToast('error', 'WEBRTC CONNECTION FAILED — TRY AGAIN');
+          setViewState('landing');
+          setSessionId(null);
         }
       },
       onTextMessage: (text, senderId, timestamp) => {
@@ -83,7 +89,7 @@ export const App: React.FC = () => {
         sounds.playComplete();
         showToast('success', `VERIFIED: ${item.name}`);
       },
-      onError: (id, err) => {
+      onError: (_id, err) => {
         showToast('error', `ERROR: ${err}`);
       },
       onOfferReceived: (item) => {
@@ -98,12 +104,11 @@ export const App: React.FC = () => {
       const urlParams = new URLSearchParams(window.location.search);
       const joinCode = urlParams.get('join');
       if (joinCode) {
-        setViewState('join');
-        handleJoinSession(joinCode);
+        setTimeout(() => handleJoinSession(joinCode), 200);
       }
     }).catch((err) => {
       console.error('Signaling connection failed', err);
-      showToast('error', 'SIGNALING SERVER UNREACHABLE');
+      showToast('error', 'SIGNALING SERVER UNREACHABLE — RETRYING...');
     });
 
     signaling.on('SESSION_CREATED', (msg) => {
@@ -114,19 +119,23 @@ export const App: React.FC = () => {
     });
 
     signaling.on('SESSION_JOINED', (msg) => {
+      // Client confirmed to have joined the session — now wait for host's WebRTC offer
       if (msg.sessionId) {
         setSessionId(msg.sessionId);
         if (msg.targetPeerId) {
           rtc.setTargetPeerId(msg.targetPeerId);
         }
-        setViewState('join');
-        showToast('info', `JOINED SESSION #${msg.sessionId} — ESTABLISHING WEBRTC...`);
+        // Move to "waiting" — do NOT go back to join screen
+        setViewState('waiting');
+        showToast('info', `SESSION #${msg.sessionId} JOINED — WAITING FOR HOST...`);
       }
     });
 
     signaling.on('PEER_JOINED', (msg) => {
+      // Host receives this when a client joins — initiate WebRTC offer immediately
       if (msg.peerId) {
-        showToast('info', 'REMOTE PEER JOINED SESSION. INITIATING WEBRTC...');
+        showToast('info', 'PEER CONNECTED — INITIATING HANDSHAKE...');
+        setViewState('waiting');
         rtc.initiateConnection(msg.peerId);
       }
     });
@@ -134,6 +143,8 @@ export const App: React.FC = () => {
     signaling.on('PEER_LEFT', () => {
       showToast('error', 'REMOTE PEER DISCONNECTED');
       setWebrtcState('disconnected');
+      setViewState('landing');
+      setSessionId(null);
     });
 
     return () => {
@@ -146,15 +157,17 @@ export const App: React.FC = () => {
   const handleCreateSession = () => {
     if (signalingRef.current) {
       signalingRef.current.createSession();
-      showToast('info', 'NEW SESSION CODE GENERATED');
+      showToast('info', 'GENERATING SESSION CODE...');
     }
   };
 
   const handleJoinSession = (code: string) => {
+    const trimmedCode = code.trim();
+    if (!trimmedCode) return;
     if (signalingRef.current) {
-      setSessionId(code);
-      signalingRef.current.joinSession(code);
-      showToast('info', `JOINING SESSION #${code}...`);
+      setSessionId(trimmedCode);
+      signalingRef.current.joinSession(trimmedCode);
+      showToast('info', `JOINING SESSION #${trimmedCode}...`);
     }
   };
 
@@ -162,9 +175,11 @@ export const App: React.FC = () => {
     if (rtcRef.current) {
       rtcRef.current.close();
     }
-    setWebrtcState('disconnected');
+    setWebrtcState('new');
     setSessionId(null);
     setViewState('landing');
+    setQueue([]);
+    setTextMessages([]);
     showToast('info', 'P2P SESSION TERMINATED');
   };
 
@@ -220,8 +235,6 @@ export const App: React.FC = () => {
     }
   };
 
-  const isConnected = webrtcState === 'connected';
-
   return (
     <div className="min-h-screen bg-[#050505] text-[#f2f2f2] flex flex-col font-sans relative overflow-x-hidden">
       {/* Animated Technical Background */}
@@ -236,11 +249,12 @@ export const App: React.FC = () => {
         />
 
         <main className="flex-1 w-full max-w-[960px] mx-auto py-8">
-          {/* ============ CONNECTED VIEW (ACTIVE TRANSFER WORKSPACE) ============ */}
-          {isConnected ? (
+
+          {/* ============ CONNECTED WORKSPACE ============ */}
+          {viewState === 'connected' ? (
             <ConnectedScreen
               queue={queue}
-              isConnected={isConnected}
+              isConnected={true}
               webrtcState={webrtcState}
               sessionId={sessionId}
               textMessages={textMessages}
@@ -253,26 +267,60 @@ export const App: React.FC = () => {
               onSendText={handleSendText}
               onDisconnect={handleDisconnect}
             />
+
+          /* ============ WAITING / HANDSHAKE IN PROGRESS ============ */
+          ) : viewState === 'waiting' ? (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-fade-in-up font-mono">
+              {/* Spinner */}
+              <div className="relative w-20 h-20">
+                <div className="absolute inset-0 rounded-full border-2 border-[rgba(255,48,48,0.15)]" />
+                <div className="absolute inset-0 rounded-full border-t-2 border-[#ff3030] animate-spin" />
+                <div className="absolute inset-[6px] rounded-full border-t-2 border-[rgba(255,48,48,0.4)] animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
+              </div>
+
+              <div className="text-center space-y-2">
+                <p className="text-sm text-[#ff3030] tracking-[0.25em] uppercase font-bold animate-pulse">
+                  ESTABLISHING ENCRYPTED TUNNEL
+                </p>
+                {sessionId && (
+                  <p className="text-xs text-[#555] tracking-widest">
+                    SESSION: <span className="text-[#888]">{sessionId}</span>
+                  </p>
+                )}
+                <p className="text-xs text-[#444] mt-4 max-w-xs mx-auto leading-relaxed">
+                  Negotiating WebRTC DataChannel over<br />STUN servers. This may take a few seconds.
+                </p>
+              </div>
+
+              <button
+                onClick={handleDisconnect}
+                className="mt-4 px-5 py-2 text-xs font-mono text-rose-400 border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 uppercase tracking-wider transition-colors"
+              >
+                CANCEL
+              </button>
+            </div>
+
+          /* ============ HOST SCREEN ============ */
           ) : viewState === 'host' && sessionId ? (
-            /* ============ HOST SCREEN ============ */
             <HostScreen
               sessionId={sessionId}
               webrtcState={webrtcState}
               onRegenerateSession={handleCreateSession}
-              onBack={() => setViewState('landing')}
+              onBack={() => { setViewState('landing'); setSessionId(null); }}
             />
+
+          /* ============ JOIN SCREEN ============ */
           ) : viewState === 'join' ? (
-            /* ============ JOIN SCREEN ============ */
             <JoinScreen
               onJoinSession={handleJoinSession}
               onOpenQRScanner={() => setIsQRScannerOpen(true)}
               onBack={() => setViewState('landing')}
             />
+
+          /* ============ LANDING ============ */
           ) : (
-            /* ============ LANDING VIEW ============ */
             <div className="space-y-12">
               <Hero />
-
               <LandingActions
                 onCreateSession={handleCreateSession}
                 onSelectJoin={() => setViewState('join')}
@@ -280,7 +328,6 @@ export const App: React.FC = () => {
                 onOpenQRScanner={() => setIsQRScannerOpen(true)}
                 activeMode="create"
               />
-
               <div id="how-it-works">
                 <HowItWorks />
               </div>
@@ -304,6 +351,7 @@ export const App: React.FC = () => {
         isOpen={isQRScannerOpen}
         onClose={() => setIsQRScannerOpen(false)}
         onScanSuccess={(code) => {
+          setIsQRScannerOpen(false);
           handleJoinSession(code);
         }}
       />
