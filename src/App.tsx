@@ -6,6 +6,7 @@ import { LandingActions } from './components/LandingActions';
 import { HostScreen } from './components/HostScreen';
 import { JoinScreen } from './components/JoinScreen';
 import { ConnectedScreen } from './components/ConnectedScreen';
+import { HowItWorks } from './components/HowItWorks';
 import { Footer } from './components/Footer';
 import { QRCodeModal } from './components/QRCodeModal';
 import { QRScannerModal } from './components/QRScannerModal';
@@ -25,7 +26,6 @@ export const App: React.FC = () => {
 
   const [signalingConnected, setSignalingConnected] = useState(false);
   const [webrtcState, setWebrtcState] = useState<WebRTCState>('new');
-  const [channelsOpen, setChannelsOpen] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
   const [viewState, setViewState] = useState<'landing' | 'host' | 'join'>('landing');
@@ -116,6 +116,9 @@ export const App: React.FC = () => {
     signaling.on('SESSION_JOINED', (msg) => {
       if (msg.sessionId) {
         setSessionId(msg.sessionId);
+        if (msg.targetPeerId) {
+          rtc.setTargetPeerId(msg.targetPeerId);
+        }
         setViewState('join');
         showToast('info', `JOINED SESSION #${msg.sessionId} — ESTABLISHING WEBRTC...`);
       }
@@ -277,6 +280,10 @@ export const App: React.FC = () => {
                 onOpenQRScanner={() => setIsQRScannerOpen(true)}
                 activeMode="create"
               />
+
+              <div id="how-it-works">
+                <HowItWorks />
+              </div>
             </div>
           )}
         </main>

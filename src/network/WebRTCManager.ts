@@ -19,7 +19,8 @@ export class WebRTCManager {
   public controlChannel: RTCDataChannel | null = null;
   public fileChannel: RTCDataChannel | null = null;
 
-  private pendingIceCandidates: RTCIceCandidateInit[] = [];
+  private pendingIncomingIceCandidates: RTCIceCandidateInit[] = [];
+  private pendingOutgoingIceCandidates: RTCIceCandidateInit[] = [];
   private events: WebRTCEvents = {};
   public connectionState: WebRTCState = 'new';
   public isInitiator: boolean = false;
@@ -30,7 +31,10 @@ export class WebRTCManager {
       { urls: 'stun:stun1.l.google.com:19302' },
       { urls: 'stun:stun2.l.google.com:19302' },
       { urls: 'stun:stun3.l.google.com:19302' },
-      { urls: 'stun:stun4.l.google.com:19302' }
+      { urls: 'stun:stun4.l.google.com:19302' },
+      { urls: 'stun:global.stun.twilio.com:3478' },
+      { urls: 'stun:stun.services.mozilla.com' },
+      { urls: 'stun:stun.cloudflare.com:3478' }
     ]
   };
 
@@ -46,6 +50,7 @@ export class WebRTCManager {
 
   public setTargetPeerId(targetPeerId: string) {
     this.targetPeerId = targetPeerId;
+    this.flushOutgoingIceCandidates();
   }
 
   private updateState(state: WebRTCState) {
@@ -60,8 +65,8 @@ export class WebRTCManager {
       if (!msg.payload) return;
       const { type, sdp, candidate } = msg.payload;
 
-      if (!this.targetPeerId && msg.peerId) {
-        this.targetPeerId = msg.peerId;
+      if (msg.peerId && !this.targetPeerId) {
+        this.setTargetPeerId(msg.peerId);
       }
 
       if (type === 'offer') {
@@ -76,7 +81,7 @@ export class WebRTCManager {
 
   public async initiateConnection(targetPeerId: string): Promise<void> {
     this.isInitiator = true;
-    this.targetPeerId = targetPeerId;
+    this.setTargetPeerId(targetPeerId);
     this.createPeerConnection();
 
     // Host creates controlChannel and fileChannel
@@ -93,6 +98,8 @@ export class WebRTCManager {
       type: 'offer',
       sdp: offer
     });
+
+    this.flushOutgoingIceCandidates();
   }
 
   private createPeerConnection() {
@@ -102,10 +109,14 @@ export class WebRTCManager {
     this.updateState('connecting');
 
     this.peerConnection.onicecandidate = (event) => {
-      if (event.candidate && this.targetPeerId) {
-        this.signaling.sendSignal(this.targetPeerId, {
-          candidate: event.candidate.toJSON()
-        });
+      if (event.candidate) {
+        const candidateJson = event.candidate.toJSON();
+        const target = this.targetPeerId || this.signaling.targetPeerId;
+        if (target) {
+          this.signaling.sendSignal(target, { candidate: candidateJson });
+        } else {
+          this.pendingOutgoingIceCandidates.push(candidateJson);
+        }
       }
     };
 
@@ -113,6 +124,17 @@ export class WebRTCManager {
       if (this.peerConnection) {
         const state = this.peerConnection.connectionState as WebRTCState;
         this.updateState(state);
+      }
+    };
+
+    this.peerConnection.oniceconnectionstatechange = () => {
+      if (this.peerConnection) {
+        const iceState = this.peerConnection.iceConnectionState;
+        if (iceState === 'connected' || iceState === 'completed') {
+          this.checkChannelStates();
+        } else if (iceState === 'failed' || iceState === 'disconnected') {
+          this.updateState(iceState === 'failed' ? 'failed' : 'disconnected');
+        }
       }
     };
 
@@ -129,13 +151,25 @@ export class WebRTCManager {
     };
   }
 
+  private flushOutgoingIceCandidates() {
+    const target = this.targetPeerId || this.signaling.targetPeerId;
+    if (target && this.pendingOutgoingIceCandidates.length > 0) {
+      while (this.pendingOutgoingIceCandidates.length > 0) {
+        const candidate = this.pendingOutgoingIceCandidates.shift();
+        if (candidate) {
+          this.signaling.sendSignal(target, { candidate });
+        }
+      }
+    }
+  }
+
   private async handleOffer(sdp: RTCSessionDescriptionInit, remotePeerId: string) {
     this.isInitiator = false;
-    this.targetPeerId = remotePeerId;
+    this.setTargetPeerId(remotePeerId);
     this.createPeerConnection();
 
     await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(sdp));
-    this.processPendingIceCandidates();
+    this.processPendingIncomingIceCandidates();
 
     const answer = await this.peerConnection!.createAnswer();
     await this.peerConnection!.setLocalDescription(answer);
@@ -144,37 +178,58 @@ export class WebRTCManager {
       type: 'answer',
       sdp: answer
     });
+
+    this.flushOutgoingIceCandidates();
   }
 
   private async handleAnswer(sdp: RTCSessionDescriptionInit) {
     if (this.peerConnection) {
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
-      this.processPendingIceCandidates();
+      this.processPendingIncomingIceCandidates();
+      this.flushOutgoingIceCandidates();
     }
   }
 
   private async handleIceCandidate(candidate: RTCIceCandidateInit) {
     if (this.peerConnection && this.peerConnection.remoteDescription) {
-      await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      try {
+        await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) {
+        console.error('Error adding ICE candidate', e);
+      }
     } else {
-      this.pendingIceCandidates.push(candidate);
+      this.pendingIncomingIceCandidates.push(candidate);
     }
   }
 
-  private async processPendingIceCandidates() {
+  private async processPendingIncomingIceCandidates() {
     if (this.peerConnection && this.peerConnection.remoteDescription) {
-      while (this.pendingIceCandidates.length > 0) {
-        const candidate = this.pendingIceCandidates.shift();
+      while (this.pendingIncomingIceCandidates.length > 0) {
+        const candidate = this.pendingIncomingIceCandidates.shift();
         if (candidate) {
-          await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+          try {
+            await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.error('Error adding buffered ICE candidate', e);
+          }
         }
       }
+    }
+  }
+
+  private checkChannelStates() {
+    if (
+      this.controlChannel && this.controlChannel.readyState === 'open' &&
+      this.fileChannel && this.fileChannel.readyState === 'open'
+    ) {
+      this.updateState('connected');
     }
   }
 
   private setupControlChannel(channel: RTCDataChannel) {
     channel.onopen = () => {
       console.log('Control DataChannel OPEN');
+      this.checkChannelStates();
       if (this.events.onChannelReady) this.events.onChannelReady();
     };
 
@@ -196,6 +251,7 @@ export class WebRTCManager {
     channel.binaryType = 'arraybuffer';
     channel.onopen = () => {
       console.log('File DataChannel OPEN');
+      this.checkChannelStates();
     };
 
     channel.onmessage = (event) => {
@@ -221,10 +277,6 @@ export class WebRTCManager {
     });
   }
 
-  /**
-   * True only when both data channels are actually open and usable.
-   * The UI gates uploads on this so offers are never sent over a closed channel.
-   */
   public areChannelsOpen(): boolean {
     return !!this.controlChannel && this.controlChannel.readyState === 'open'
       && !!this.fileChannel && this.fileChannel.readyState === 'open';
