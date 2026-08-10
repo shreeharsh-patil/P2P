@@ -310,10 +310,14 @@ export const App: React.FC = () => {
                 </p>
                 <p className="text-xs text-[#555] max-w-xs mx-auto leading-relaxed">
                   WebRTC could not establish a direct channel.<br />
-                  This can happen if both devices are on strict NAT networks.<br />
-                  Try again — TURN relay servers will be used.
+                  Check the browser console (F12) for detailed diagnostics.
                 </p>
               </div>
+              {rtcRef.current && (
+                <pre className="text-[10px] text-[#555] bg-[#0a0a0a] border border-[#1a1a1a] p-3 rounded max-w-sm w-full text-left whitespace-pre-wrap">
+                  {rtcRef.current.getDiagnostics()}
+                </pre>
+              )}
               <div className="flex gap-3">
                 <button
                   onClick={() => {
