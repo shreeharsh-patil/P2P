@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+:root {
+  --bg-base: #050505;
+  --bg-panel: #0a0a0c;
+  --bg-panel-hover: #121216;
+  --border-subtle: #1c1c22;
+  --border-accent: #381014;
+  --border-red: #e51b23;
+  --accent-red: #ff2b2b;
+  --accent-crimson: #e51b23;
+  --accent-darkred: #7a0d12;
+  --text-primary: #f2f2f2;
+  --text-secondary: #8a8a8a;
+  --text-muted: #4a4a4a;
+}
+
+@layer base {
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Inter', 'Geist', sans-serif;
+    antialiased: true;
+    min-height: 100vh;
+    overflow-x: hidden;
+    selection-background-color: var(--accent-crimson);
+    selection-color: #ffffff;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'Geist Mono', 'JetBrains Mono', 'IBM Plex Mono', monospace;
+  }
+}
+
+/* Background & Lighting */
+.bg-grid-dots {
+  background-image: radial-gradient(rgba(229, 27, 35, 0.12) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Technical Panels & Borders */
+.tech-panel {
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tech-panel-hover:hover {
+  background-color: var(--bg-panel-hover);
+  border-color: rgba(229, 27, 35, 0.4);
+  box-shadow: 0 0 20px rgba(229, 27, 35, 0.12);
+  transform: translateY(-1px);
+}
+
+/* Scanline Effect */
+.scanline {
+  background: linear-gradient(
+    to bottom,
+    rgba(255,255,255,0),
+    rgba(255,255,255,0) 50%,
+    rgba(0, 0, 0, 0.3) 50%,
+    rgba(0, 0, 0, 0.3)
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #080808;
+}
+::-webkit-scrollbar-thumb {
+  background: #26262a;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-crimson);
+}
+
+/* Animations */
+@keyframes redPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.96); }
+}
+
+.animate-red-pulse {
+  animation: redPulse 2.5s infinite ease-in-out;
+}
+
+/* Respect prefers-reduced-motion for CSS animations */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse,
+  .animate-ping {
+    animation: none;
+  }
+}
