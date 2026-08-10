@@ -1,6 +1,8 @@
 /**
  * BackpressureController prevents memory bloat by monitoring RTCDataChannel.bufferedAmount
  * and pausing chunk transmission whenever the send buffer is full.
+ *
+ * Tuned for Multi-Gigabit (Gbps) WebRTC throughput on LAN / Wi-Fi 6 / 5G.
  */
 export class BackpressureController {
   private channel: RTCDataChannel;
@@ -12,8 +14,8 @@ export class BackpressureController {
 
   constructor(
     channel: RTCDataChannel,
-    highWaterMark: number = 512 * 1024, // 512 KB
-    lowWaterMark: number = 128 * 1024   // 128 KB
+    highWaterMark: number = 8 * 1024 * 1024, // 8 MB high water mark for Gbps streaming
+    lowWaterMark: number = 2 * 1024 * 1024   // 2 MB low water mark
   ) {
     this.channel = channel;
     this.highWaterMark = highWaterMark;
@@ -51,14 +53,14 @@ export class BackpressureController {
         });
       }
 
-      // Safety timeout in case onbufferedamountlow doesn't fire
+      // Safety polling fallback in case onbufferedamountlow is delayed
       const timeoutPromise = new Promise<void>((resolve) => {
         const interval = setInterval(() => {
           if (this.channel.bufferedAmount <= this.lowWaterMark) {
             clearInterval(interval);
             resolve();
           }
-        }, 50);
+        }, 15);
       });
 
       await Promise.race([this.drainPromise, timeoutPromise]);

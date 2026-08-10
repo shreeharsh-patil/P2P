@@ -24,7 +24,7 @@ export class TransferManager {
   private resumeManagers: Map<string, ResumeManager> = new Map();
   private backpressureControllers: Map<string, BackpressureController> = new Map();
 
-  private defaultChunkSize: number = 256 * 1024; // 256 KB
+  private defaultChunkSize: number = 1024 * 1024; // 1 MB (1024 KB) for Gbps throughput
   private speedTimer: any = null;
   private lastBytesTransferred: Map<string, { bytes: number; timestamp: number }> = new Map();
 
