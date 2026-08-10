@@ -19,6 +19,7 @@ export class WebRTCManager {
 
   public controlChannel: RTCDataChannel | null = null;
   public fileChannel: RTCDataChannel | null = null;
+  public isWebSocketRelayMode: boolean = false;
 
   private pendingIncomingIceCandidates: RTCIceCandidateInit[] = [];
   private pendingOutgoingIceCandidates: RTCIceCandidateInit[] = [];
@@ -54,6 +55,7 @@ export class WebRTCManager {
     return [
       `Initiator: ${this.isInitiator}`,
       `Target: ${this.targetPeerId || 'none'}`,
+      `Relay Mode: ${this.isWebSocketRelayMode ? 'WebSocket Tunnel' : 'Direct P2P'}`,
       `Offer sent: ${this.offerSent}, received: ${this.offerReceived}`,
       `Answer sent: ${this.answerSent}, received: ${this.answerReceived}`,
       `ICE candidates sent: ${this.iceCandidatesSent}, received: ${this.iceCandidatesReceived}`,
@@ -79,15 +81,40 @@ export class WebRTCManager {
     this.events.onStateChange?.(state);
   }
 
+  private activateWebSocketRelayMode(reason: string) {
+    if (this.isWebSocketRelayMode || this.connectionState === 'connected') return;
+    console.log(`[WebRTC] Fallback to WebSocket Relay Mode (${reason})`);
+    this.isWebSocketRelayMode = true;
+    this.updateState('connected');
+    this.events.onChannelReady?.();
+  }
+
   private setupSignalingListeners() {
     this.signaling.on('SIGNAL', async (msg) => {
       if (!msg.payload) return;
-      const { type, sdp, candidate } = msg.payload;
-
-      console.log(`[WebRTC] Incoming signal: ${type ? `type=${type}` : ''}${candidate ? ' candidate' : ''} from ${msg.peerId}`);
+      const { type, sdp, candidate, isRelayData, controlPayload, fileBufferArray } = msg.payload;
 
       if (msg.peerId && !this.targetPeerId) {
         this.setTargetPeerId(msg.peerId);
+      }
+
+      // Handle WebSocket Relay Data
+      if (isRelayData) {
+        this.activateWebSocketRelayMode('received relay payload');
+
+        if (controlPayload && this.events.onControlMessage) {
+          if (controlPayload.type === 'TEXT_MESSAGE' && controlPayload.textPayload && this.events.onTextMessage) {
+            this.events.onTextMessage(controlPayload.textPayload, msg.peerId || 'Peer', controlPayload.timestamp || Date.now());
+          } else {
+            this.events.onControlMessage(controlPayload);
+          }
+        }
+
+        if (fileBufferArray && this.events.onFileChunk) {
+          const uint8 = new Uint8Array(fileBufferArray);
+          this.events.onFileChunk(uint8.buffer);
+        }
+        return;
       }
 
       try {
@@ -131,16 +158,22 @@ export class WebRTCManager {
   private createPeerConnection() {
     if (this.peerConnection) return;
 
-    // High-speed, zero-latency STUN configuration
+    // High-speed STUN + Metered OpenRelay TURN
     const config: RTCConfiguration = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
         { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' },
         { urls: 'stun:stun.cloudflare.com:3478' },
-        { urls: 'stun:stun.services.mozilla.com' },
+        {
+          urls: [
+            'turn:openrelay.metered.ca:80',
+            'turn:openrelay.metered.ca:443',
+            'turn:openrelay.metered.ca:443?transport=tcp'
+          ],
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        }
       ],
       iceCandidatePoolSize: 10
     };
@@ -168,8 +201,8 @@ export class WebRTCManager {
       if (state === 'connected') {
         this.updateState('connected');
       } else if (state === 'failed') {
-        console.error('[WebRTC] PeerConnection failed!');
-        this.updateState('failed');
+        console.warn('[WebRTC] PeerConnection failed → switching to WebSocket Relay');
+        this.activateWebSocketRelayMode('connection failed');
       } else if (state === 'disconnected') {
         this.updateState('disconnected');
       } else if (state === 'closed') {
@@ -183,8 +216,8 @@ export class WebRTCManager {
       if (iceState === 'connected' || iceState === 'completed') {
         this.updateState('connected');
       } else if (iceState === 'failed') {
-        console.error('[WebRTC] ICE failed!');
-        this.updateState('failed');
+        console.warn('[WebRTC] ICE failed → switching to WebSocket Relay');
+        this.activateWebSocketRelayMode('ICE failed');
       }
     };
 
@@ -203,21 +236,13 @@ export class WebRTCManager {
 
   private startConnectionTimeout() {
     if (this.connectionTimer) clearTimeout(this.connectionTimer);
+    // If direct P2P STUN/TURN doesn't pair within 4.5 seconds, auto-fallback to WebSocket Relay
     this.connectionTimer = setTimeout(() => {
       if (this.connectionState !== 'connected') {
-        console.warn('[WebRTC] Connection timeout reached (8s) without reaching connected state');
-        if (this.isInitiator && this.peerConnection && this.targetPeerId) {
-          console.log('[WebRTC] Triggering ICE restart...');
-          this.peerConnection.createOffer({ iceRestart: true }).then((offer) => {
-            return this.peerConnection?.setLocalDescription(offer).then(() => offer);
-          }).then((offer) => {
-            if (offer && this.targetPeerId) {
-              this.signaling.sendSignal(this.targetPeerId, { type: 'offer', sdp: offer });
-            }
-          }).catch((err) => console.error('ICE restart error:', err));
-        }
+        console.log('[WebRTC] 4.5s timeout reached without direct P2P → Activating WebSocket Relay Mode');
+        this.activateWebSocketRelayMode('connection timeout');
       }
-    }, 8000);
+    }, 4500);
   }
 
   private flushOutgoingIceCandidates() {
@@ -330,6 +355,28 @@ export class WebRTCManager {
       this.controlChannel.send(JSON.stringify(msg));
       return true;
     }
+    if (this.isWebSocketRelayMode && this.targetPeerId) {
+      this.signaling.sendSignal(this.targetPeerId, {
+        isRelayData: true,
+        controlPayload: msg
+      });
+      return true;
+    }
+    return false;
+  }
+
+  public sendFileChunk(buffer: ArrayBuffer): boolean {
+    if (this.fileChannel?.readyState === 'open') {
+      this.fileChannel.send(buffer);
+      return true;
+    }
+    if (this.isWebSocketRelayMode && this.targetPeerId) {
+      this.signaling.sendSignal(this.targetPeerId, {
+        isRelayData: true,
+        fileBufferArray: Array.from(new Uint8Array(buffer))
+      });
+      return true;
+    }
     return false;
   }
 
@@ -338,7 +385,7 @@ export class WebRTCManager {
   }
 
   public areChannelsOpen(): boolean {
-    return this.controlChannel?.readyState === 'open' && this.fileChannel?.readyState === 'open';
+    return (this.controlChannel?.readyState === 'open' && this.fileChannel?.readyState === 'open') || this.isWebSocketRelayMode;
   }
 
   public close(): void {
@@ -355,6 +402,7 @@ export class WebRTCManager {
     this.pendingIncomingIceCandidates = [];
     this.pendingOutgoingIceCandidates = [];
     this.targetPeerId = null;
+    this.isWebSocketRelayMode = false;
     this.iceCandidatesSent = 0;
     this.iceCandidatesReceived = 0;
     this.offerSent = false;

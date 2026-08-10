@@ -287,16 +287,16 @@ export class TransferManager {
   private async startSendingChunks(transferId: string, startIndex: number) {
     const item = this.queue.get(transferId);
     const chunkReader = this.chunkReaders.get(transferId);
-    if (!item || !chunkReader || !this.rtc.fileChannel) return;
+    if (!item || !chunkReader || !this.rtc.areChannelsOpen()) return;
 
-    if (!this.backpressureControllers.has(transferId)) {
+    if (this.rtc.fileChannel && !this.backpressureControllers.has(transferId)) {
       this.backpressureControllers.set(
         transferId,
         new BackpressureController(this.rtc.fileChannel, item.chunkSize * 2, item.chunkSize)
       );
     }
 
-    const backpressure = this.backpressureControllers.get(transferId)!;
+    const backpressure = this.backpressureControllers.get(transferId);
     const totalChunks = chunkReader.getTotalChunks();
 
     for (let index = startIndex; index < totalChunks; index++) {
@@ -305,8 +305,10 @@ export class TransferManager {
         break;
       }
 
-      // Backpressure Check: wait if buffer full before reading next chunk!
-      await backpressure.waitIfBuffered();
+      // Backpressure Check if WebRTC DataChannel is active
+      if (backpressure) {
+        await backpressure.waitIfBuffered();
+      }
 
       try {
         const chunk = await chunkReader.readChunk(index);
@@ -317,7 +319,7 @@ export class TransferManager {
           chunk.buffer
         );
 
-        this.rtc.fileChannel.send(packetBuffer);
+        this.rtc.sendFileChunk(packetBuffer);
 
         const bytesTransferred = Number(chunk.offset) + chunk.length;
         const percent = Math.min(100, Math.round((bytesTransferred / item.size) * 100));
