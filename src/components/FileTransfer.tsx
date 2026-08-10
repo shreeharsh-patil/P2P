@@ -1,11 +1,12 @@
 import React, { useRef, useState } from 'react';
 import { 
   UploadCloud, File, FileText, Image, Video, Music, Archive, 
-  Pause, Play, X, ShieldCheck, AlertCircle, Download
+  Pause, Play, X, ShieldCheck, AlertCircle, Download, Eye
 } from 'lucide-react';
 import { TransferItem } from '../engine/types';
 import { formatBytes, formatTimeRemaining, truncateFileName } from '../utils/formatters';
 import { StatusIndicator, StatusKind } from './StatusIndicator';
+import { FilePreviewModal } from './FilePreviewModal';
 
 interface FileTransferProps {
   queue: TransferItem[];
@@ -61,6 +62,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [previewItem, setPreviewItem] = useState<TransferItem | null>(null);
 
   const openFilePicker = () => {
     if (canTransfer && fileInputRef.current) {
@@ -241,15 +243,24 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
                       </>
                     )}
 
-                    {/* Download completed button */}
+                    {/* Download completed actions */}
                     {item.status === 'completed' && item.downloadUrl && (
-                      <button
-                        onClick={() => handleDownloadClick(item.downloadUrl!, item.name)}
-                        className="px-3 py-1.5 text-[11px] font-mono font-bold bg-[#ff2b2b] hover:bg-[#e51b23] text-white rounded-sm transition-colors flex items-center gap-1.5 active:scale-95 shadow-[0_0_12px_rgba(255,48,48,0.3)]"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        Save File
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setPreviewItem(item)}
+                          className="px-3 py-1.5 text-[11px] font-mono text-[#aaa] border border-[#333] hover:border-[#ff2b2b] hover:text-white rounded-sm transition-colors flex items-center gap-1 active:scale-95"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-[#ff2b2b]" />
+                          Preview
+                        </button>
+                        <button
+                          onClick={() => handleDownloadClick(item.downloadUrl!, item.name)}
+                          className="px-3 py-1.5 text-[11px] font-mono font-bold bg-[#ff2b2b] hover:bg-[#e51b23] text-white rounded-sm transition-colors flex items-center gap-1.5 active:scale-95 shadow-[0_0_12px_rgba(255,48,48,0.3)]"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Save File
+                        </button>
+                      </div>
                     )}
 
                     {/* Active transfer controls */}
@@ -332,6 +343,12 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
           </div>
         )}
       </div>
+
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        item={previewItem}
+        onClose={() => setPreviewItem(null)}
+      />
     </div>
   );
 };
