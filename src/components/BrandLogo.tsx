@@ -2,20 +2,20 @@ import React from 'react';
 
 export const BrandLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'md' }) => {
   const dimensions = size === 'lg' ? 'w-10 h-10' : size === 'sm' ? 'w-6 h-6' : 'w-8 h-8';
-  const textSizes = size === 'lg' ? 'text-2xl' : size === 'sm' ? 'text-lg' : 'text-xl';
+  const textSizes = size === 'lg' ? 'text-2xl' : size === 'sm' ? 'text-base' : 'text-lg';
 
   return (
-    <div className="flex items-center gap-3 group">
+    <div className="flex items-center gap-3 group select-none cursor-pointer">
       <div className={`${dimensions} relative flex items-center justify-center`}>
-        {/* Outer sharp tech border */}
-        <div className="absolute inset-0 border border-[#ff2b2b]/40 bg-[#09090b] rounded-sm transform rotate-45 transition-transform group-hover:rotate-90 group-hover:border-[#ff2b2b] duration-300" />
-        
-        {/* Core crimson node */}
-        <div className="relative z-10 w-2.5 h-2.5 bg-[#ff2b2b] rounded-xs shadow-[0_0_8px_#ff2b2b]" />
+        <img 
+          src="/favicon.svg" 
+          alt="SHREE Logo" 
+          className="w-full h-full object-contain filter drop-shadow-[0_0_8px_rgba(255,48,48,0.4)] group-hover:drop-shadow-[0_0_14px_rgba(255,48,48,0.7)] transition-all duration-300 transform group-hover:scale-105"
+        />
       </div>
 
       <div className="flex flex-col">
-        <span className={`font-mono font-black tracking-widest ${textSizes} text-[#f2f2f2] group-hover:text-white transition-colors`}>
+        <span className={`font-mono font-black tracking-[0.2em] ${textSizes} text-[#f2f2f2] group-hover:text-white transition-colors uppercase`}>
           SHREE
         </span>
       </div>
