@@ -66,10 +66,7 @@ graph TD
     B2 --> B3
     B3 --> B4
 
-    rect rgb(20, 30, 20)
-        note over B4,C1: Direct P2P WebRTC DataChannel Stream
-        B4 == Encrypted RTCDataChannel Stream ==> C1
-    end
+    B4 == Encrypted RTCDataChannel Stream ==> C1
 
     C1 --> C2
     C2 --> C3
