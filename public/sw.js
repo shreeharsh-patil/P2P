@@ -1,12 +1,11 @@
 /**
  * Shree P2P Service Worker
- * Provides offline shell caching and handles Web Share Target payload routing.
+ * Network-first for navigation/HTML to prevent stale asset hashes.
+ * Cache-first for static icons/manifests with offline fallback.
  */
 
-const CACHE_NAME = 'shree-p2p-cache-v1';
+const CACHE_NAME = 'shree-p2p-cache-v2';
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/favicon.svg'
 ];
@@ -32,21 +31,36 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass WebSocket and non-GET requests directly through
-  if (event.request.method !== 'GET' || event.request.url.startsWith('ws')) {
+  const url = new URL(event.request.url);
+
+  // Pass non-GET and WebSockets directly
+  if (event.request.method !== 'GET' || url.protocol.startsWith('ws')) {
     return;
   }
 
+  // Network-First for Navigation / HTML requests
+  if (event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request).then((cached) => cached || caches.match('/index.html'));
+        })
+    );
+    return;
+  }
+
+  // Cache-first with network fallback for assets
   event.respondWith(
     caches.match(event.request).then((cached) => {
-      return (
-        cached ||
-        fetch(event.request).catch(() => {
-          if (event.request.headers.get('accept')?.includes('text/html')) {
-            return caches.match('/index.html');
-          }
-        })
-      );
+      if (cached) return cached;
+      return fetch(event.request);
     })
   );
 });
