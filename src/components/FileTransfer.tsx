@@ -2,7 +2,7 @@ import React, { useRef, useState, useMemo } from 'react';
 import { 
   UploadCloud, File, FileText, Image, Video, Music, Archive, 
   Pause, Play, X, ShieldCheck, AlertCircle, Download, Eye,
-  Folder, FolderUp, CheckCheck, Package, Layers, XCircle, FileCheck, Zap
+  Folder, FolderUp, CheckCheck, Package, Layers, XCircle, Zap
 } from 'lucide-react';
 import { TransferItem } from '../engine/types';
 import { formatBytes, formatTimeRemaining, truncateFileName } from '../utils/formatters';
@@ -10,7 +10,6 @@ import { StatusIndicator, StatusKind } from './StatusIndicator';
 import { FilePreviewModal } from './FilePreviewModal';
 import { scanDataTransferItems, extractFromFolderInput, ScannedFile } from '../utils/directoryReader';
 import { ZipStreamer } from '../utils/zipStreamer';
-import { CryptoEngine } from '../engine/CryptoEngine';
 
 interface FileTransferProps {
   queue: TransferItem[];
@@ -172,31 +171,6 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-  };
-
-  // Download Cryptographic Transfer Receipt (Signed JSON Certificate)
-  const handleDownloadReceipt = async (item: TransferItem) => {
-    try {
-      const receipt = await CryptoEngine.generateReceipt({
-        transferId: item.id,
-        fileName: item.name,
-        fileSize: item.size,
-        sha256: item.sha256 || 'N/A',
-        senderPeerId: item.direction === 'upload' ? 'Local-Device' : 'Remote-Peer',
-        receiverPeerId: item.direction === 'download' ? 'Local-Device' : 'Remote-Peer',
-        timestamp: item.endTime || Date.now(),
-        durationMs: (item.endTime && item.startTime) ? item.endTime - item.startTime : 1000,
-        averageSpeedBytesPerSec: item.progress.speed || Math.round(item.size / 2),
-        encryptionMode: 'ECDH_AES_GCM_256'
-      });
-
-      const receiptBlob = new Blob([JSON.stringify(receipt, null, 2)], { type: 'application/json' });
-      const receiptUrl = URL.createObjectURL(receiptBlob);
-      handleDownloadClick(receiptUrl, `receipt_${item.name.replace(/\.[^/.]+$/, '')}.json`);
-      setTimeout(() => URL.revokeObjectURL(receiptUrl), 10000);
-    } catch (err) {
-      console.error('Failed to generate receipt', err);
-    }
   };
 
   // Download all completed items as a structured ZIP archive
@@ -605,14 +579,6 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
                       {/* Download completed actions */}
                       {item.status === 'completed' && item.downloadUrl && (
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleDownloadReceipt(item)}
-                            className="px-2.5 py-1.5 text-[11px] font-mono text-[#8a8a8a] border border-[#222] hover:border-emerald-500/50 hover:text-emerald-300 rounded-sm transition-colors flex items-center gap-1 active:scale-95"
-                            title="Download Cryptographic Verification Receipt (.json)"
-                          >
-                            <FileCheck className="w-3.5 h-3.5 text-emerald-400" />
-                            Receipt
-                          </button>
                           <button
                             onClick={() => setPreviewItem(item)}
                             className="px-3 py-1.5 text-[11px] font-mono text-[#aaa] border border-[#333] hover:border-[#ff2b2b] hover:text-white rounded-sm transition-colors flex items-center gap-1 active:scale-95"

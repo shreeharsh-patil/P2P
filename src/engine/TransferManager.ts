@@ -52,20 +52,38 @@ export class TransferManager {
     return this.autoAccept;
   }
 
+  private lastProgressEmit: Map<string, number> = new Map();
+
   public getQueue(): TransferItem[] {
     return Array.from(this.queue.values());
   }
 
-  private updateQueueItem(id: string, updates: Partial<TransferItem>) {
+  private updateQueueItem(id: string, updates: Partial<TransferItem>, forceEmit: boolean = true) {
     const item = this.queue.get(id);
     if (item) {
       Object.assign(item, updates);
-      if (this.callbacks.onTransferProgress) {
-        this.callbacks.onTransferProgress(item);
+      const now = Date.now();
+      const lastEmit = this.lastProgressEmit.get(id) || 0;
+
+      if (forceEmit || now - lastEmit > 40 || item.progress.percent >= 100) {
+        this.lastProgressEmit.set(id, now);
+        if (this.callbacks.onTransferProgress) {
+          this.callbacks.onTransferProgress(item);
+        }
+        if (this.callbacks.onQueueUpdated) {
+          this.callbacks.onQueueUpdated(this.getQueue());
+        }
       }
-      if (this.callbacks.onQueueUpdated) {
-        this.callbacks.onQueueUpdated(this.getQueue());
-      }
+    }
+  }
+
+  public destroy() {
+    if (this.speedTimer) {
+      clearInterval(this.speedTimer);
+      this.speedTimer = null;
+    }
+    for (const id of Array.from(this.queue.keys())) {
+      this.cleanup(id);
     }
   }
 
@@ -389,7 +407,7 @@ export class TransferManager {
             chunksTransferred: index + 1,
             percent
           }
-        });
+        }, false);
       } catch (e: any) {
         console.error(`Error sending chunk ${index}`, e);
         this.updateQueueItem(transferId, { status: 'error', error: e.message });
@@ -426,7 +444,7 @@ export class TransferManager {
           chunksTransferred: resumeMgr.getReceivedCount(),
           percent
         }
-      });
+      }, false);
 
       // Check if complete
       if (resumeMgr.isComplete()) {

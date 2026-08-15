@@ -20,6 +20,7 @@ export class SessionManager {
   }
 
   public createSession(peerId: string, ws: WebSocket): string {
+    this.removePeer(peerId);
     const sessionId = this.generateSessionCode();
     this.sessions.set(sessionId, { hostId: peerId });
     this.peers.set(peerId, { peerId, sessionId, ws });
@@ -27,6 +28,7 @@ export class SessionManager {
   }
 
   public joinSession(sessionId: string, peerId: string, ws: WebSocket): { success: boolean; hostId?: string; error?: string } {
+    this.removePeer(peerId);
     const session = this.sessions.get(sessionId);
     if (!session) {
       return { success: false, error: 'Session not found. Please check the code.' };

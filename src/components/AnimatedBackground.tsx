@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 
 export const AnimatedBackground: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: -1000, y: -1000 });
+  const mouseRef = useRef<{ x: number; y: number }>({ x: -1000, y: -1000 });
   const [isMobile, setIsMobile] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
 
@@ -24,11 +24,11 @@ export const AnimatedBackground: React.FC = () => {
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!isMobile && !reducedMotion) {
-        setMousePos({ x: e.clientX, y: e.clientY });
+        mouseRef.current = { x: e.clientX, y: e.clientY };
       }
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
     return () => {
       window.removeEventListener('resize', checkMobile);
       window.removeEventListener('mousemove', handleMouseMove);
@@ -105,15 +105,16 @@ export const AnimatedBackground: React.FC = () => {
         ctx.shadowBlur = 0;
 
         // Mouse interaction: draw connection line to cursor when close
-        if (mousePos.x > 0 && !isMobile) {
-          const mdx = p1.x - mousePos.x;
-          const mdy = p1.y - mousePos.y;
+        const mPos = mouseRef.current;
+        if (mPos.x > 0 && !isMobile) {
+          const mdx = p1.x - mPos.x;
+          const mdy = p1.y - mPos.y;
           const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
 
           if (mdist < 140) {
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(mousePos.x, mousePos.y);
+            ctx.lineTo(mPos.x, mPos.y);
             const lineOpacity = (1 - mdist / 140) * 0.25;
             ctx.strokeStyle = `rgba(255, 48, 48, ${lineOpacity})`;
             ctx.lineWidth = 0.8;
@@ -151,7 +152,7 @@ export const AnimatedBackground: React.FC = () => {
       window.removeEventListener('resize', resizeCanvas);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [isMobile, reducedMotion, mousePos]);
+  }, [isMobile, reducedMotion]);
 
   return (
     <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-[#050505]">
@@ -171,17 +172,6 @@ export const AnimatedBackground: React.FC = () => {
           WebkitMaskImage: 'radial-gradient(circle at center, black 50%, transparent 90%)'
         }}
       />
-
-      {/* Cursor Glow Tracker (Desktop only) */}
-      {!isMobile && !reducedMotion && mousePos.x > 0 && (
-        <div
-          className="absolute w-[450px] h-[450px] rounded-full pointer-events-none transition-transform duration-75 ease-out opacity-25 blur-[95px]"
-          style={{
-            transform: `translate(${mousePos.x - 225}px, ${mousePos.y - 225}px)`,
-            background: 'radial-gradient(circle, rgba(255, 48, 48, 0.3) 0%, transparent 70%)'
-          }}
-        />
-      )}
 
       {/* Canvas Particle Network */}
       <canvas ref={canvasRef} className={`absolute inset-0 w-full h-full ${isMobile ? 'opacity-35' : 'opacity-55'}`} />

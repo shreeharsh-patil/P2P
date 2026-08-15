@@ -150,6 +150,12 @@ export const App: React.FC = () => {
       }
     });
 
+    signaling.on('ERROR', (msg) => {
+      showToast('error', msg.error || 'Session error. Please check the code.');
+      setViewState('join');
+      setSessionId(null);
+    });
+
     signaling.on('PEER_LEFT', () => {
       showToast('error', 'REMOTE PEER DISCONNECTED');
       setWebrtcState('disconnected');
@@ -160,6 +166,7 @@ export const App: React.FC = () => {
     return () => {
       signaling.disconnect();
       rtc.close();
+      transfer.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -176,6 +183,7 @@ export const App: React.FC = () => {
     if (!trimmedCode) return;
     if (signalingRef.current) {
       setSessionId(trimmedCode);
+      setViewState('waiting');
       signalingRef.current.joinSession(trimmedCode);
       showToast('info', `JOINING SESSION #${trimmedCode}...`);
     }
@@ -184,6 +192,9 @@ export const App: React.FC = () => {
   const handleDisconnect = () => {
     if (rtcRef.current) {
       rtcRef.current.close();
+    }
+    if (transferRef.current) {
+      transferRef.current.destroy();
     }
     setWebrtcState('new');
     setSessionId(null);

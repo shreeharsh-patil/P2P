@@ -312,11 +312,16 @@ export class WebRTCManager {
   }
 
   private setupControlChannel(ch: RTCDataChannel) {
-    ch.onopen = () => {
+    const handleOpen = () => {
       console.log('[WebRTC] Control DataChannel OPEN');
       this.updateState('connected');
       this.events.onChannelReady?.();
     };
+
+    ch.onopen = handleOpen;
+    if (ch.readyState === 'open') {
+      handleOpen();
+    }
 
     ch.onmessage = (event) => {
       try {
@@ -336,10 +341,16 @@ export class WebRTCManager {
 
   private setupFileChannel(ch: RTCDataChannel) {
     ch.binaryType = 'arraybuffer';
-    ch.onopen = () => {
+
+    const handleOpen = () => {
       console.log('[WebRTC] File DataChannel OPEN');
       this.updateState('connected');
     };
+
+    ch.onopen = handleOpen;
+    if (ch.readyState === 'open') {
+      handleOpen();
+    }
 
     ch.onmessage = (event) => {
       if (event.data instanceof ArrayBuffer) {

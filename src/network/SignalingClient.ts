@@ -30,6 +30,8 @@ export class SignalingClient {
     }
   }
 
+  private sendQueue: SignalMessage[] = [];
+
   public connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
@@ -43,6 +45,15 @@ export class SignalingClient {
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = null;
           }
+
+          // Flush any messages queued before connection established
+          while (this.sendQueue.length > 0) {
+            const queued = this.sendQueue.shift();
+            if (queued && this.ws?.readyState === WebSocket.OPEN) {
+              this.ws.send(JSON.stringify(queued));
+            }
+          }
+
           resolve();
         };
 
@@ -74,7 +85,6 @@ export class SignalingClient {
         this.ws.onerror = (err) => {
           console.error(`Signaling WebSocket connection attempt failed for ${this.serverUrl}`, err);
           if (!this.isConnected) {
-            // Render free tier backend may be waking up from spin-down cold start; schedule retry
             this.scheduleReconnect();
             reject(err);
           }
@@ -104,6 +114,11 @@ export class SignalingClient {
   private send(msg: SignalMessage): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
+    } else {
+      this.sendQueue.push(msg);
+      if (!this.isConnected && !this.reconnectTimer) {
+        this.connect().catch(() => {});
+      }
     }
   }
 

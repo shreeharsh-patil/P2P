@@ -85,6 +85,7 @@ export class IndexedDBFallbackWriter implements StorageWriter {
   private transferId: string;
   private totalChunks: number;
   private memoryChunks: Map<number, Uint8Array> = new Map();
+  private maxMemoryChunks: number = 16;
 
   constructor(transferId: string, totalChunks: number) {
     this.transferId = transferId;
@@ -92,6 +93,12 @@ export class IndexedDBFallbackWriter implements StorageWriter {
   }
 
   public async writeChunk(chunkIndex: number, offset: bigint, data: Uint8Array): Promise<void> {
+    if (this.memoryChunks.size >= this.maxMemoryChunks) {
+      const firstKey = this.memoryChunks.keys().next().value;
+      if (firstKey !== undefined) {
+        this.memoryChunks.delete(firstKey);
+      }
+    }
     this.memoryChunks.set(chunkIndex, data);
     await IDBStorage.saveChunk(this.transferId, chunkIndex, data);
   }
