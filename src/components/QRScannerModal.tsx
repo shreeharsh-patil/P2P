@@ -15,30 +15,57 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 }) => {
   const qrCodeRef = useRef<Html5Qrcode | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasScannedRef = useRef<boolean>(false);
+  const isStoppingRef = useRef<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [isStarting, setIsStarting] = useState(false);
 
+  const stopCameraTracks = () => {
+    try {
+      const container = document.getElementById('qr-reader-container');
+      if (container) {
+        const videos = container.getElementsByTagName('video');
+        for (let i = 0; i < videos.length; i++) {
+          const stream = videos[i].srcObject as MediaStream;
+          if (stream && stream.getTracks) {
+            stream.getTracks().forEach((track) => track.stop());
+          }
+        }
+      }
+    } catch (e) {}
+  };
+
+  const stopScanner = async () => {
+    if (isStoppingRef.current) return;
+    isStoppingRef.current = true;
+    stopCameraTracks();
+
+    if (qrCodeRef.current) {
+      try {
+        if (qrCodeRef.current.isScanning) {
+          await qrCodeRef.current.stop();
+        }
+        qrCodeRef.current.clear();
+      } catch (e) {}
+      qrCodeRef.current = null;
+    }
+    isStoppingRef.current = false;
+  };
+
   const startScanner = async (mode: 'environment' | 'user') => {
     try {
+      hasScannedRef.current = false;
       setErrorMessage(null);
       setIsStarting(true);
 
-      // Stop existing instance if running
-      if (qrCodeRef.current) {
-        try {
-          if (qrCodeRef.current.isScanning) {
-            await qrCodeRef.current.stop();
-          }
-          qrCodeRef.current.clear();
-        } catch (e) {}
-      }
+      await stopScanner();
 
       const qrScanner = new Html5Qrcode('qr-reader-container');
       qrCodeRef.current = qrScanner;
 
       const config = {
-        fps: 10,
+        fps: 15,
         qrbox: { width: 220, height: 220 },
         aspectRatio: 1.0
       };
@@ -46,19 +73,26 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
       await qrScanner.start(
         { facingMode: mode },
         config,
-        (decodedText) => {
+        async (decodedText) => {
+          // Prevent multiple trigger frames on the same QR detection
+          if (hasScannedRef.current) return;
+          hasScannedRef.current = true;
+
+          // Haptic feedback if supported
+          if (navigator.vibrate) {
+            try { navigator.vibrate(60); } catch (e) {}
+          }
+
           const match = decodedText.match(/\b\d{6}\b/) || decodedText.match(/join=([A-Za-z0-9-]+)/i);
           const finalCode = match ? (match[1] || match[0]) : decodedText.trim();
 
-          if (qrScanner.isScanning) {
-            qrScanner.stop().catch(() => {});
-          }
-          qrScanner.clear();
+          // Instantly release camera stream to prevent lag
+          await stopScanner();
           onScanSuccess(finalCode);
           onClose();
         },
         () => {
-          // Ignored per-frame scan failures
+          // Ignored frame search noise
         }
       );
       setIsStarting(false);
@@ -71,11 +105,11 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
       } else if (err?.name === 'NotAllowedError' || err?.toString().includes('Permission denied')) {
         setErrorMessage('Camera permission denied. Please allow camera access in your browser settings.');
       } else if (mode === 'environment') {
-        // Retry with default user camera if environment camera is unavailable
+        // Fallback to front camera if back camera is unavailable
         setFacingMode('user');
         startScanner('user');
       } else {
-        setErrorMessage('Unable to access camera on this device. You can upload an image of the QR code instead.');
+        setErrorMessage('Unable to access camera. You can upload a photo of the QR code instead.');
       }
     }
   };
@@ -83,7 +117,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   useEffect(() => {
     let timer: any = null;
     if (isOpen) {
-      // Small timeout to ensure container DOM element is mounted
+      hasScannedRef.current = false;
       timer = setTimeout(() => {
         startScanner(facingMode);
       }, 100);
@@ -91,14 +125,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
     return () => {
       if (timer) clearTimeout(timer);
-      if (qrCodeRef.current) {
-        try {
-          if (qrCodeRef.current.isScanning) {
-            qrCodeRef.current.stop().catch(() => {});
-          }
-          qrCodeRef.current.clear();
-        } catch (e) {}
-      }
+      stopScanner();
     };
   }, [isOpen]);
 
@@ -118,6 +145,8 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         const decodedResult = await qrCodeRef.current.scanFile(file, true);
         const match = decodedResult.match(/\b\d{6}\b/) || decodedResult.match(/join=([A-Za-z0-9-]+)/i);
         const finalCode = match ? (match[1] || match[0]) : decodedResult.trim();
+        
+        await stopScanner();
         onScanSuccess(finalCode);
         onClose();
       } catch (err) {
@@ -133,7 +162,10 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
       <div className="tech-panel p-6 max-w-sm w-full relative bg-[#09090b] border border-[#ff2b2b]/50 shadow-[0_0_30px_rgba(255,43,43,0.15)] font-mono space-y-4">
         <button
-          onClick={onClose}
+          onClick={() => {
+            stopScanner();
+            onClose();
+          }}
           className="absolute top-4 right-4 p-1 text-[#8a8a8a] hover:text-white rounded-xs transition-colors z-10"
         >
           <X className="w-5 h-5" />
@@ -145,7 +177,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
             <h3 className="text-sm font-bold text-[#f2f2f2] tracking-wide">QR Scanner</h3>
           </div>
           <p className="text-xs text-[#8a8a8a]">
-            Point your camera at the host QR code or upload an image.
+            Point camera at host QR code.
           </p>
 
           {/* CAMERA VIEWFINDER */}
@@ -184,7 +216,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className="px-3 py-1.5 text-xs font-mono text-[#ff8080] hover:text-white bg-[#180a0c] border border-[#ff2b2b]/40 rounded-xs flex items-center gap-1.5 transition-colors"
-              title="Upload QR code from gallery or screenshots"
+              title="Upload QR code from gallery"
             >
               <Image className="w-3.5 h-3.5" />
               Scan Photo
