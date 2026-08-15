@@ -108,14 +108,40 @@ export const App: React.FC = () => {
     transfer.setAutoAccept(localStorage.getItem('shree_auto_accept') === 'true');
     transferRef.current = transfer;
 
+    const extractJoinCodeFromUrl = (): string | null => {
+      // 1. Check query parameters (?join=123456)
+      const searchParams = new URLSearchParams(window.location.search);
+      const searchCode = searchParams.get('join');
+      if (searchCode && searchCode.trim()) return searchCode.trim();
+
+      // 2. Check hash (#join=123456 or #/join/123456)
+      if (window.location.hash) {
+        const hash = window.location.hash.substring(1);
+        const match = hash.match(/\b\d{6}\b/) || hash.match(/join[=/]([A-Za-z0-9-]+)/i);
+        if (match) return (match[1] || match[0]).trim();
+      }
+
+      // 3. Check pathname (/join/123456)
+      const pathMatch = window.location.pathname.match(/\/join\/([A-Za-z0-9-]+)/i);
+      if (pathMatch) return pathMatch[1].trim();
+
+      return null;
+    };
+
+    const joinCode = extractJoinCodeFromUrl();
+    if (joinCode) {
+      setSessionId(joinCode);
+      setViewState('waiting');
+      showToast('info', `AUTO-JOINING SESSION #${joinCode}...`);
+      signaling.joinSession(joinCode);
+      // Clean URL bar to prevent reload loop
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {}
+    }
+
     signaling.connect().then(() => {
       setSignalingConnected(true);
-
-      const urlParams = new URLSearchParams(window.location.search);
-      const joinCode = urlParams.get('join');
-      if (joinCode) {
-        setTimeout(() => handleJoinSession(joinCode), 200);
-      }
     }).catch((err) => {
       console.error('Signaling connection failed', err);
       showToast('error', 'SIGNALING SERVER UNREACHABLE — RETRYING...');
