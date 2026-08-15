@@ -4,17 +4,26 @@ import { TextTransfer, TextMessageItem } from './TextTransfer';
 import { ConnectionPanel } from './ConnectionPanel';
 import { TransferItem } from '../engine/types';
 import { WebRTCState } from '../network/WebRTCManager';
+import { ScannedFile } from '../utils/directoryReader';
 
 interface ConnectedScreenProps {
   queue: TransferItem[];
   isConnected: boolean;
   canTransfer?: boolean;
+  autoAcceptFiles?: boolean;
+  onToggleAutoAccept?: () => void;
   webrtcState: WebRTCState;
   sessionId: string | null;
   textMessages: TextMessageItem[];
   onOfferFiles: (files: FileList | File[]) => void;
+  onOfferScannedFiles?: (files: ScannedFile[]) => void;
   onAcceptOffer: (id: string) => void;
   onRejectOffer: (id: string) => void;
+  onAcceptAllOffers?: () => void;
+  onRejectAllOffers?: () => void;
+  onPauseAll?: () => void;
+  onResumeAll?: () => void;
+  onCancelAll?: () => void;
   onPauseTransfer: (id: string) => void;
   onResumeTransfer: (id: string) => void;
   onCancelTransfer: (id: string) => void;
@@ -26,12 +35,20 @@ export const ConnectedScreen: React.FC<ConnectedScreenProps> = ({
   queue,
   isConnected,
   canTransfer = true,
+  autoAcceptFiles = false,
+  onToggleAutoAccept,
   webrtcState,
   sessionId,
   textMessages,
   onOfferFiles,
+  onOfferScannedFiles,
   onAcceptOffer,
   onRejectOffer,
+  onAcceptAllOffers,
+  onRejectAllOffers,
+  onPauseAll,
+  onResumeAll,
+  onCancelAll,
   onPauseTransfer,
   onResumeTransfer,
   onCancelTransfer,
@@ -70,9 +87,17 @@ export const ConnectedScreen: React.FC<ConnectedScreenProps> = ({
           <FileTransfer
             queue={queue}
             canTransfer={canTransfer ?? isConnected}
+            autoAcceptFiles={autoAcceptFiles}
+            onToggleAutoAccept={onToggleAutoAccept}
             onOfferFiles={onOfferFiles}
+            onOfferScannedFiles={onOfferScannedFiles}
             onAcceptOffer={onAcceptOffer}
             onRejectOffer={onRejectOffer}
+            onAcceptAllOffers={onAcceptAllOffers}
+            onRejectAllOffers={onRejectAllOffers}
+            onPauseAll={onPauseAll}
+            onResumeAll={onResumeAll}
+            onCancelAll={onCancelAll}
             onPauseTransfer={onPauseTransfer}
             onResumeTransfer={onResumeTransfer}
             onCancelTransfer={onCancelTransfer}

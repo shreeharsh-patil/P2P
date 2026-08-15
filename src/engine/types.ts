@@ -11,6 +11,8 @@ export type TransferStatus =
 export interface TransferMeta {
   id: string;
   name: string;
+  relativePath?: string; // Preserve folder structure, e.g., "my-folder/assets/img.png"
+  batchId?: string;
   size: number;
   type: string;
   totalChunks: number;

@@ -10,6 +10,7 @@ import { HowItWorks } from './components/HowItWorks';
 import { Footer } from './components/Footer';
 import { QRCodeModal } from './components/QRCodeModal';
 import { QRScannerModal } from './components/QRScannerModal';
+import { SettingsModal } from './components/SettingsModal';
 import { Toast, ToastMessage } from './components/Toast';
 import { TextMessageItem } from './components/TextTransfer';
 
@@ -38,9 +39,15 @@ export const App: React.FC = () => {
   // Modals
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // Engine Preferences
-  const [preferDirectSave] = useState<boolean>(false);
+  const [autoAcceptFiles, setAutoAcceptFiles] = useState<boolean>(() => {
+    return localStorage.getItem('shree_auto_accept') === 'true';
+  });
+  const [chunkSize, setChunkSize] = useState<number>(1024 * 1024);
+  const [preferDirectSave, setPreferDirectSave] = useState<boolean>(false);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
 
   const showToast = (type: 'success' | 'error' | 'info', text: string) => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -98,6 +105,7 @@ export const App: React.FC = () => {
         showToast('info', `FILE OFFER: ${item.name}`);
       }
     });
+    transfer.setAutoAccept(localStorage.getItem('shree_auto_accept') === 'true');
     transferRef.current = transfer;
 
     signaling.connect().then(() => {
@@ -188,10 +196,22 @@ export const App: React.FC = () => {
   // Transfer Engine Handlers
   const handleOfferFiles = (files: FileList | File[]) => {
     if (transferRef.current) {
+      const batchId = Math.random().toString(36).substring(2, 9);
       Array.from(files).forEach((file) => {
-        transferRef.current!.offerFile(file);
+        const relPath = (file as any).webkitRelativePath || file.name;
+        transferRef.current!.offerFile(file, relPath, batchId);
       });
       showToast('info', `OFFERING ${files.length} FILE(S) TO PEER`);
+    }
+  };
+
+  const handleOfferScannedFiles = (scannedFiles: { file: File; relativePath: string }[]) => {
+    if (transferRef.current && scannedFiles.length > 0) {
+      const batchId = Math.random().toString(36).substring(2, 9);
+      scannedFiles.forEach(({ file, relativePath }) => {
+        transferRef.current!.offerFile(file, relativePath, batchId);
+      });
+      showToast('info', `OFFERING ${scannedFiles.length} ITEM(S) TO PEER`);
     }
   };
 
@@ -204,6 +224,39 @@ export const App: React.FC = () => {
   const handleRejectOffer = (id: string) => {
     if (transferRef.current) {
       transferRef.current.rejectOffer(id);
+    }
+  };
+
+  const handleAcceptAllOffers = () => {
+    if (transferRef.current) {
+      transferRef.current.acceptAllOffers(preferDirectSave);
+      showToast('info', 'ACCEPTED ALL INCOMING OFFERS');
+    }
+  };
+
+  const handleRejectAllOffers = () => {
+    if (transferRef.current) {
+      transferRef.current.rejectAllOffers();
+      showToast('info', 'DECLINED ALL INCOMING OFFERS');
+    }
+  };
+
+  const handlePauseAll = () => {
+    if (transferRef.current) {
+      transferRef.current.pauseAll();
+    }
+  };
+
+  const handleResumeAll = () => {
+    if (transferRef.current) {
+      transferRef.current.resumeAll();
+    }
+  };
+
+  const handleCancelAll = () => {
+    if (transferRef.current) {
+      transferRef.current.cancelAll();
+      showToast('info', 'CANCELLED ALL ACTIVE TRANSFERS');
     }
   };
 
@@ -223,6 +276,41 @@ export const App: React.FC = () => {
     if (transferRef.current) {
       transferRef.current.cancelTransfer(id);
     }
+  };
+
+  const handleToggleAutoAccept = () => {
+    setAutoAcceptFiles((prev) => {
+      const next = !prev;
+      localStorage.setItem('shree_auto_accept', String(next));
+      if (transferRef.current) {
+        transferRef.current.setAutoAccept(next);
+      }
+      showToast('info', next ? 'AUTO-ACCEPT TRANSFERS: ENABLED' : 'AUTO-ACCEPT TRANSFERS: DISABLED');
+      return next;
+    });
+  };
+
+  const handleAutoAcceptChange = (val: boolean) => {
+    setAutoAcceptFiles(val);
+    localStorage.setItem('shree_auto_accept', String(val));
+    if (transferRef.current) {
+      transferRef.current.setAutoAccept(val);
+    }
+    showToast('info', val ? 'AUTO-ACCEPT TRANSFERS: ENABLED' : 'AUTO-ACCEPT TRANSFERS: DISABLED');
+  };
+
+  const handleChunkSizeChange = (size: number) => {
+    setChunkSize(size);
+    if (transferRef.current) {
+      transferRef.current.setChunkSize(size);
+    }
+  };
+
+  const handleSoundToggle = () => {
+    setSoundEnabled((prev) => {
+      sounds.enabled = !prev;
+      return !prev;
+    });
   };
 
   const handleSendText = (text: string) => {
@@ -248,6 +336,7 @@ export const App: React.FC = () => {
           webrtcState={webrtcState}
           signalingConnected={signalingConnected}
           sessionId={sessionId}
+          onOpenSettings={() => setIsSettingsModalOpen(true)}
         />
 
         <main className="flex-1 w-full max-w-[960px] mx-auto py-8">
@@ -257,12 +346,20 @@ export const App: React.FC = () => {
             <ConnectedScreen
               queue={queue}
               isConnected={true}
+              autoAcceptFiles={autoAcceptFiles}
+              onToggleAutoAccept={handleToggleAutoAccept}
               webrtcState={webrtcState}
               sessionId={sessionId}
               textMessages={textMessages}
               onOfferFiles={handleOfferFiles}
+              onOfferScannedFiles={handleOfferScannedFiles}
               onAcceptOffer={handleAcceptOffer}
               onRejectOffer={handleRejectOffer}
+              onAcceptAllOffers={handleAcceptAllOffers}
+              onRejectAllOffers={handleRejectAllOffers}
+              onPauseAll={handlePauseAll}
+              onResumeAll={handleResumeAll}
+              onCancelAll={handleCancelAll}
               onPauseTransfer={handlePauseTransfer}
               onResumeTransfer={handleResumeTransfer}
               onCancelTransfer={handleCancelTransfer}
@@ -391,6 +488,19 @@ export const App: React.FC = () => {
           setIsQRScannerOpen(false);
           handleJoinSession(code);
         }}
+      />
+
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        chunkSize={chunkSize}
+        onChunkSizeChange={handleChunkSizeChange}
+        preferDirectSave={preferDirectSave}
+        onPreferDirectSaveChange={setPreferDirectSave}
+        autoAcceptFiles={autoAcceptFiles}
+        onAutoAcceptFilesChange={handleAutoAcceptChange}
+        soundEnabled={soundEnabled}
+        onSoundToggle={handleSoundToggle}
       />
 
       <Toast toasts={toasts} onDismiss={dismissToast} />

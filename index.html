@@ -7,9 +7,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SHREE — Private. Direct. Simple. P2P File & Text Transfer</title>
     <meta name="description" content="Send files and text directly between your devices without server storage." />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#ff2b2b" />
   </head>
   <body class="bg-[#050505] text-[#f2f2f2] font-sans antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator && window.location.protocol === 'https:' || window.location.hostname === 'localhost') {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch((err) => {
+            console.log('ServiceWorker registration error:', err);
+          });
+        });
+      }
+    </script>
   </body>
 </html>

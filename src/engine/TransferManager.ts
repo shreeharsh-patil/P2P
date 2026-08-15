@@ -25,6 +25,7 @@ export class TransferManager {
   private backpressureControllers: Map<string, BackpressureController> = new Map();
 
   private defaultChunkSize: number = 1024 * 1024; // 1 MB (1024 KB) for Gbps throughput
+  private autoAccept: boolean = false;
   private speedTimer: any = null;
   private lastBytesTransferred: Map<string, { bytes: number; timestamp: number }> = new Map();
 
@@ -41,6 +42,14 @@ export class TransferManager {
 
   public setChunkSize(bytes: number) {
     this.defaultChunkSize = bytes;
+  }
+
+  public setAutoAccept(enabled: boolean) {
+    this.autoAccept = enabled;
+  }
+
+  public isAutoAccept(): boolean {
+    return this.autoAccept;
   }
 
   public getQueue(): TransferItem[] {
@@ -70,7 +79,7 @@ export class TransferManager {
   /**
    * Sender API: Selects a file and initiates P2P upload.
    */
-  public async offerFile(file: File): Promise<string> {
+  public async offerFile(file: File, relativePath?: string, batchId?: string): Promise<string> {
     const id = Math.random().toString(36).substring(2, 11);
     const chunkSize = this.defaultChunkSize;
     const totalChunks = Math.ceil(file.size / chunkSize);
@@ -84,6 +93,8 @@ export class TransferManager {
     const item: TransferItem = {
       id,
       name: file.name,
+      relativePath: relativePath || file.name,
+      batchId,
       size: file.size,
       type: file.type || 'application/octet-stream',
       totalChunks,
@@ -113,6 +124,8 @@ export class TransferManager {
       meta: {
         id,
         name: file.name,
+        relativePath: relativePath || file.name,
+        batchId,
         size: file.size,
         type: file.type || 'application/octet-stream',
         totalChunks,
@@ -122,6 +135,47 @@ export class TransferManager {
     });
 
     return id;
+  }
+
+  /**
+   * Batch Controls: Accept, reject, pause, resume, cancel all items in queue
+   */
+  public async acceptAllOffers(preferDirectSave: boolean = false): Promise<void> {
+    for (const [id, item] of this.queue.entries()) {
+      if (item.status === 'offering' && item.direction === 'download') {
+        await this.acceptOffer(id, preferDirectSave);
+      }
+    }
+  }
+
+  public rejectAllOffers(): void {
+    for (const [id, item] of this.queue.entries()) {
+      if (item.status === 'offering' && item.direction === 'download') {
+        this.rejectOffer(id);
+      }
+    }
+  }
+
+  public pauseAll(): void {
+    for (const [id, item] of this.queue.entries()) {
+      if (item.status === 'transferring') {
+        this.pauseTransfer(id);
+      }
+    }
+  }
+
+  public resumeAll(): void {
+    for (const [id, item] of this.queue.entries()) {
+      if (item.status === 'paused') {
+        this.resumeTransfer(id);
+      }
+    }
+  }
+
+  public cancelAll(): void {
+    for (const id of Array.from(this.queue.keys())) {
+      this.cancelTransfer(id);
+    }
   }
 
   /**
@@ -228,6 +282,10 @@ export class TransferManager {
         this.queue.set(msg.transferId, item);
         if (this.callbacks.onQueueUpdated) this.callbacks.onQueueUpdated(this.getQueue());
         if (this.callbacks.onOfferReceived) this.callbacks.onOfferReceived(item);
+
+        if (this.autoAccept) {
+          this.acceptOffer(msg.transferId);
+        }
         break;
       }
 

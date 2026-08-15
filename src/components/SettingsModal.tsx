@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Settings, Cpu, HardDrive, Volume2 } from 'lucide-react';
+import { X, Settings, Cpu, HardDrive, Volume2, Zap } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -8,6 +8,8 @@ interface SettingsModalProps {
   onChunkSizeChange: (size: number) => void;
   preferDirectSave: boolean;
   onPreferDirectSaveChange: (val: boolean) => void;
+  autoAcceptFiles: boolean;
+  onAutoAcceptFilesChange: (val: boolean) => void;
   soundEnabled: boolean;
   onSoundToggle: () => void;
 }
@@ -19,6 +21,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onChunkSizeChange,
   preferDirectSave,
   onPreferDirectSaveChange,
+  autoAcceptFiles,
+  onAutoAcceptFilesChange,
   soundEnabled,
   onSoundToggle
 }) => {
@@ -88,6 +92,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <input
               type="checkbox"
               checked={preferDirectSave}
+              onChange={() => {}}
+              className="accent-[#ff2b2b] w-4 h-4"
+            />
+          </div>
+        </div>
+
+        {/* Auto-Accept Files Toggle */}
+        <div className="space-y-2 pt-3 border-t border-[#1c1c22]">
+          <label className="text-xs font-bold text-[#8a8a8a] flex items-center gap-2">
+            <Zap className="w-4 h-4 text-[#ff2b2b]" />
+            Auto-accept transfers
+          </label>
+          <div
+            onClick={() => onAutoAcceptFilesChange(!autoAcceptFiles)}
+            className="p-3 bg-[#050505] rounded-xs border border-[#1c1c22] flex items-center justify-between cursor-pointer hover:border-[#26262e] transition-colors"
+          >
+            <div>
+              <div className="text-xs font-bold text-[#f2f2f2]">Auto-accept incoming files</div>
+              <div className="text-[10px] text-[#8a8a8a]">Automatically start downloading when peer sends files</div>
+            </div>
+            <input
+              type="checkbox"
+              checked={autoAcceptFiles}
               onChange={() => {}}
               className="accent-[#ff2b2b] w-4 h-4"
             />

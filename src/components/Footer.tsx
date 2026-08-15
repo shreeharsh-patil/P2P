@@ -11,12 +11,6 @@ export const Footer: React.FC = () => {
         <div className="text-[11px] font-mono text-[#4a4a4a] tracking-wider">
           Peer-to-peer file & text transfer
         </div>
-
-        <div className="flex items-center justify-center gap-4 text-[11px] text-[#8a8a8a] pt-1">
-          <a href="#privacy" className="hover:text-[#ff2b2b] transition-colors">
-            Privacy
-          </a>
-        </div>
       </div>
     </footer>
   );
