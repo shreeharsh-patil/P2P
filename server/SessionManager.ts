@@ -47,8 +47,14 @@ export class SessionManager {
   }
 
   public handleSignal(senderPeerId: string, targetPeerId: string, payload: any): boolean {
+    const senderPeer = this.peers.get(senderPeerId);
     const targetPeer = this.peers.get(targetPeerId);
-    if (targetPeer && targetPeer.ws.readyState === WebSocket.OPEN) {
+    if (
+      senderPeer &&
+      targetPeer &&
+      senderPeer.sessionId === targetPeer.sessionId &&
+      targetPeer.ws.readyState === WebSocket.OPEN
+    ) {
       const message: SignalMessage = {
         type: 'SIGNAL',
         peerId: senderPeerId,

@@ -45,7 +45,7 @@ export const App: React.FC = () => {
   const [autoAcceptFiles, setAutoAcceptFiles] = useState<boolean>(() => {
     return localStorage.getItem('shree_auto_accept') === 'true';
   });
-  const [chunkSize, setChunkSize] = useState<number>(1024 * 1024);
+  const [chunkSize, setChunkSize] = useState<number>(60 * 1024);
   const [preferDirectSave, setPreferDirectSave] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
 
@@ -183,6 +183,14 @@ export const App: React.FC = () => {
     });
 
     signaling.on('PEER_LEFT', () => {
+      // The signaling socket can be suspended when a browser is minimized, while
+      // the direct WebRTC data channels remain usable. Do not tear down that live
+      // session solely because signaling reports that the peer left.
+      if (rtc.areChannelsOpen() && !rtc.isWebSocketRelayMode) {
+        showToast('info', 'SIGNALING PEER PAUSED — KEEPING DIRECT CONNECTION ACTIVE');
+        return;
+      }
+
       showToast('error', 'REMOTE PEER DISCONNECTED');
       setWebrtcState('disconnected');
       setViewState('landing');
@@ -231,23 +239,33 @@ export const App: React.FC = () => {
   };
 
   // Transfer Engine Handlers
-  const handleOfferFiles = (files: FileList | File[]) => {
+  const handleOfferFiles = async (files: FileList | File[]) => {
     if (transferRef.current) {
       const batchId = Math.random().toString(36).substring(2, 9);
-      Array.from(files).forEach((file) => {
+      for (const file of Array.from(files)) {
         const relPath = (file as any).webkitRelativePath || file.name;
-        transferRef.current!.offerFile(file, relPath, batchId);
-      });
+        try {
+          await transferRef.current.offerFile(file, relPath, batchId);
+        } catch (error) {
+          console.error('Failed to offer file', error);
+          showToast('error', `FAILED TO OFFER: ${file.name}`);
+        }
+      }
       showToast('info', `OFFERING ${files.length} FILE(S) TO PEER`);
     }
   };
 
-  const handleOfferScannedFiles = (scannedFiles: { file: File; relativePath: string }[]) => {
+  const handleOfferScannedFiles = async (scannedFiles: { file: File; relativePath: string }[]) => {
     if (transferRef.current && scannedFiles.length > 0) {
       const batchId = Math.random().toString(36).substring(2, 9);
-      scannedFiles.forEach(({ file, relativePath }) => {
-        transferRef.current!.offerFile(file, relativePath, batchId);
-      });
+      for (const { file, relativePath } of scannedFiles) {
+        try {
+          await transferRef.current.offerFile(file, relativePath, batchId);
+        } catch (error) {
+          console.error('Failed to offer file', error);
+          showToast('error', `FAILED TO OFFER: ${file.name}`);
+        }
+      }
       showToast('info', `OFFERING ${scannedFiles.length} ITEM(S) TO PEER`);
     }
   };

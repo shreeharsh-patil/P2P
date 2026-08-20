@@ -28,4 +28,14 @@ describe('ChunkReader', () => {
     expect(lastChunk.offset).toBe(BigInt(7 * chunkSize));
     expect(lastChunk.length).toBe(chunkSize);
   });
+
+  it('creates one empty chunk for a zero-byte file', async () => {
+    const emptyFile = new File([], 'empty.zip', { type: 'application/zip' });
+    const reader = new ChunkReader(emptyFile, 60 * 1024);
+
+    expect(reader.getTotalChunks()).toBe(1);
+    const chunk = await reader.readChunk(0);
+    expect(chunk.offset).toBe(0n);
+    expect(chunk.length).toBe(0);
+  });
 });

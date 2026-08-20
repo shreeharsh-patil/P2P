@@ -32,12 +32,18 @@ interface FileTransferProps {
 
 type FilterTab = 'all' | 'active' | 'completed' | 'pending';
 
-const getFileIcon = (type: string) => {
+const isArchive = (name: string, type: string) =>
+  type.includes('zip') ||
+  type.includes('tar') ||
+  type.includes('rar') ||
+  /\.(zip|tar|gz|tgz|rar|7z)$/i.test(name);
+
+const getFileIcon = (name: string, type: string) => {
   if (type.startsWith('image/')) return <Image className="w-4 h-4 text-[#ff2b2b]" />;
   if (type.startsWith('video/')) return <Video className="w-4 h-4 text-[#ff2b2b]" />;
   if (type.startsWith('audio/')) return <Music className="w-4 h-4 text-[#ff2b2b]" />;
   if (type.includes('pdf') || type.includes('text')) return <FileText className="w-4 h-4 text-[#ff2b2b]" />;
-  if (type.includes('zip') || type.includes('tar') || type.includes('rar')) return <Archive className="w-4 h-4 text-[#ff2b2b]" />;
+  if (isArchive(name, type)) return <Archive className="w-4 h-4 text-[#ff2b2b]" />;
   return <File className="w-4 h-4 text-[#ff2b2b]" />;
 };
 
@@ -279,6 +285,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
           type="file"
           ref={fileInputRef}
           onChange={handleFileSelect}
+          accept="*/*,.zip,application/zip,application/x-zip-compressed"
           multiple
           className="hidden"
           tabIndex={-1}
@@ -321,7 +328,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
                 ? 'Preparing WebRTC P2P DataChannel connection...'
                 : isDragOver
                 ? 'Release to stream entire directory tree or files'
-                : 'Fast P2P streaming with automatic directory hierarchy & adaptive chunking'}
+                : 'Fast P2P streaming for files, ZIP archives, and folders'}
             </p>
           </div>
 
@@ -539,7 +546,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="p-2 bg-[#050505] border border-[#18181c] rounded-sm flex-shrink-0">
-                        {getFileIcon(item.type)}
+                        {getFileIcon(item.name, item.type)}
                       </div>
                       <div className="min-w-0">
                         {hasFolderPath && (

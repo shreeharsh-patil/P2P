@@ -24,7 +24,8 @@ export class TransferManager {
   private resumeManagers: Map<string, ResumeManager> = new Map();
   private backpressureControllers: Map<string, BackpressureController> = new Map();
 
-  private defaultChunkSize: number = 1024 * 1024; // 1 MB (1024 KB) for Gbps throughput
+  // Leave room for the 36-byte framing header under common WebRTC message limits.
+  private defaultChunkSize: number = 60 * 1024;
   private autoAccept: boolean = false;
   private speedTimer: any = null;
   private lastBytesTransferred: Map<string, { bytes: number; timestamp: number }> = new Map();
@@ -100,7 +101,7 @@ export class TransferManager {
   public async offerFile(file: File, relativePath?: string, batchId?: string): Promise<string> {
     const id = Math.random().toString(36).substring(2, 11);
     const chunkSize = this.defaultChunkSize;
-    const totalChunks = Math.ceil(file.size / chunkSize);
+    const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
 
     const chunkReader = new ChunkReader(file, chunkSize);
     this.chunkReaders.set(id, chunkReader);
@@ -136,7 +137,7 @@ export class TransferManager {
     }
 
     // Send FILE_OFFER over RTC control channel
-    this.rtc.sendControlMessage({
+    if (!this.rtc.sendControlMessage({
       type: 'FILE_OFFER',
       transferId: id,
       meta: {
@@ -150,7 +151,13 @@ export class TransferManager {
         chunkSize,
         sha256: checksum
       }
-    });
+    })) {
+      this.updateQueueItem(id, {
+        status: 'error',
+        error: 'Peer connection is not ready. Please reconnect and try again.'
+      });
+      this.cleanup(id);
+    }
 
     return id;
   }
@@ -202,32 +209,43 @@ export class TransferManager {
   public async acceptOffer(transferId: string, preferDirectSave: boolean = false): Promise<void> {
     const item = this.queue.get(transferId);
     if (!item) return;
+    let writer: StorageWriter | undefined;
 
-    this.updateQueueItem(transferId, { status: 'transferring', startTime: Date.now() });
+    try {
+      this.updateQueueItem(transferId, { status: 'transferring', startTime: Date.now() });
 
-    // Initialize Storage Writer (Direct FS, OPFS, or IDB)
-    const { writer } = await StorageAdapter.createWriter(
-      transferId,
-      item.name,
-      item.size,
-      item.totalChunks,
-      preferDirectSave
-    );
-    this.storageWriters.set(transferId, writer);
+      // Initialize Storage Writer (Direct FS, OPFS, or IDB)
+      const storage = await StorageAdapter.createWriter(
+        transferId,
+        item.name,
+        item.size,
+        item.totalChunks,
+        preferDirectSave
+      );
+      writer = storage.writer;
+      this.storageWriters.set(transferId, writer);
 
-    // Initialize Resume Manager
-    const resumeMgr = new ResumeManager(transferId, item.totalChunks);
-    await resumeMgr.initFromStorage();
-    this.resumeManagers.set(transferId, resumeMgr);
+      // Initialize Resume Manager
+      const resumeMgr = new ResumeManager(transferId, item.totalChunks);
+      await resumeMgr.initFromStorage();
+      this.resumeManagers.set(transferId, resumeMgr);
 
-    const startChunkIndex = resumeMgr.getFirstMissingChunkIndex();
+      const startChunkIndex = resumeMgr.getFirstMissingChunkIndex();
 
-    // Send FILE_ACCEPT back to sender
-    this.rtc.sendControlMessage({
-      type: 'FILE_ACCEPT',
-      transferId,
-      receivedIndex: startChunkIndex
-    });
+      // Send FILE_ACCEPT back to sender
+      if (!this.rtc.sendControlMessage({
+        type: 'FILE_ACCEPT',
+        transferId,
+        receivedIndex: startChunkIndex
+      })) {
+        throw new Error('Peer connection is not ready. Please try accepting the file again.');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to prepare the file download.';
+      await writer?.abort();
+      this.updateQueueItem(transferId, { status: 'error', error: message });
+      this.callbacks.onError?.(transferId, message);
+    }
   }
 
   /**
@@ -272,6 +290,7 @@ export class TransferManager {
     if (item) {
       this.updateQueueItem(transferId, { status: 'cancelled' });
       this.rtc.sendControlMessage({ type: 'CANCEL_TRANSFER', transferId });
+      void this.storageWriters.get(transferId)?.abort();
       this.cleanup(transferId);
     }
   }
@@ -309,7 +328,7 @@ export class TransferManager {
 
       case 'FILE_ACCEPT': {
         const item = this.queue.get(msg.transferId);
-        if (item && item.direction === 'upload') {
+        if (item && item.direction === 'upload' && item.status === 'offering') {
           this.updateQueueItem(msg.transferId, { status: 'transferring', startTime: Date.now() });
           const startChunkIndex = msg.receivedIndex || 0;
           this.startSendingChunks(msg.transferId, startChunkIndex);
@@ -329,12 +348,19 @@ export class TransferManager {
       }
 
       case 'RESUME_TRANSFER': {
-        this.updateQueueItem(msg.transferId, { status: 'transferring' });
+        const item = this.queue.get(msg.transferId);
+        if (item) {
+          this.updateQueueItem(msg.transferId, { status: 'transferring' });
+          if (item.direction === 'upload') {
+            this.startSendingChunks(msg.transferId, item.progress.chunksTransferred);
+          }
+        }
         break;
       }
 
       case 'CANCEL_TRANSFER': {
         this.updateQueueItem(msg.transferId, { status: 'cancelled', error: 'Transfer cancelled by peer' });
+        void this.storageWriters.get(msg.transferId)?.abort();
         this.cleanup(msg.transferId);
         break;
       }
@@ -395,7 +421,9 @@ export class TransferManager {
           chunk.buffer
         );
 
-        this.rtc.sendFileChunk(packetBuffer);
+        if (!this.rtc.sendFileChunk(packetBuffer)) {
+          throw new Error('File channel is unavailable. Please wait for the peer connection to recover.');
+        }
 
         const bytesTransferred = Number(chunk.offset) + chunk.length;
         const percent = Math.min(100, Math.round((bytesTransferred / item.size) * 100));
@@ -488,6 +516,16 @@ export class TransferManager {
       }
     } catch (e: any) {
       console.error('Error handling incoming file chunk', e);
+      const packetTransferId = buffer.byteLength >= 20
+        ? new TextDecoder().decode(new Uint8Array(buffer, 4, 16)).replace(/\0/g, '')
+        : undefined;
+      if (packetTransferId && this.queue.has(packetTransferId)) {
+        const message = e instanceof Error ? e.message : 'Unable to write incoming file data.';
+        this.updateQueueItem(packetTransferId, { status: 'error', error: message });
+        this.callbacks.onError?.(packetTransferId, message);
+        void this.storageWriters.get(packetTransferId)?.abort();
+        this.cleanup(packetTransferId);
+      }
     }
   }
 

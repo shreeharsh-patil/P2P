@@ -29,11 +29,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   if (!isOpen) return null;
 
   const chunkSizes = [
-    { label: '64 KB', value: 64 * 1024 },
-    { label: '128 KB', value: 128 * 1024 },
-    { label: '256 KB (Recommended)', value: 256 * 1024 },
-    { label: '512 KB', value: 512 * 1024 },
-    { label: '1 MB', value: 1024 * 1024 }
+    { label: '16 KB', value: 16 * 1024 },
+    { label: '32 KB', value: 32 * 1024 },
+    { label: '60 KB (Recommended)', value: 60 * 1024 }
   ];
 
   return (

@@ -16,6 +16,7 @@ export class WebRTCManager {
   private signaling: SignalingClient;
   private targetPeerId: string | null = null;
   private connectionTimer: any = null;
+  private disconnectionTimer: any = null;
 
   public controlChannel: RTCDataChannel | null = null;
   public fileChannel: RTCDataChannel | null = null;
@@ -76,13 +77,17 @@ export class WebRTCManager {
         clearTimeout(this.connectionTimer);
         this.connectionTimer = null;
       }
+      if (this.disconnectionTimer) {
+        clearTimeout(this.disconnectionTimer);
+        this.disconnectionTimer = null;
+      }
     }
 
     this.events.onStateChange?.(state);
   }
 
   private activateWebSocketRelayMode(reason: string) {
-    if (this.isWebSocketRelayMode || this.connectionState === 'connected') return;
+    if (this.isWebSocketRelayMode) return;
     console.log(`[WebRTC] Fallback to WebSocket Relay Mode (${reason})`);
     this.isWebSocketRelayMode = true;
     this.updateState('connected');
@@ -204,7 +209,8 @@ export class WebRTCManager {
         console.warn('[WebRTC] PeerConnection failed → switching to WebSocket Relay');
         this.activateWebSocketRelayMode('connection failed');
       } else if (state === 'disconnected') {
-        this.updateState('disconnected');
+        // This state can be transient while ICE reconnects.
+        this.scheduleRelayFallback();
       } else if (state === 'closed') {
         this.updateState('closed');
       }
@@ -243,6 +249,22 @@ export class WebRTCManager {
         this.activateWebSocketRelayMode('connection timeout');
       }
     }, 4500);
+  }
+
+  private scheduleRelayFallback() {
+    if (this.disconnectionTimer) return;
+
+    this.disconnectionTimer = setTimeout(() => {
+      this.disconnectionTimer = null;
+      const connectionState = this.peerConnection?.connectionState;
+      const iceState = this.peerConnection?.iceConnectionState;
+      if (connectionState === 'disconnected' || iceState === 'disconnected') {
+        console.warn('[WebRTC] Connection did not recover; switching to WebSocket Relay');
+        this.activateWebSocketRelayMode('connection remained disconnected');
+      }
+    // Backgrounded/minimized browsers may delay ICE activity for several seconds.
+    // Keep an established session available while the browser resumes normally.
+    }, 60_000);
   }
 
   private flushOutgoingIceCandidates() {
@@ -362,10 +384,6 @@ export class WebRTCManager {
   }
 
   public sendControlMessage(msg: ControlMessage): boolean {
-    if (this.controlChannel?.readyState === 'open') {
-      this.controlChannel.send(JSON.stringify(msg));
-      return true;
-    }
     if (this.isWebSocketRelayMode && this.targetPeerId) {
       this.signaling.sendSignal(this.targetPeerId, {
         isRelayData: true,
@@ -373,20 +391,32 @@ export class WebRTCManager {
       });
       return true;
     }
+    if (this.controlChannel?.readyState === 'open') {
+      try {
+        this.controlChannel.send(JSON.stringify(msg));
+        return true;
+      } catch (error) {
+        console.warn('[WebRTC] Control channel send failed', error);
+      }
+    }
     return false;
   }
 
   public sendFileChunk(buffer: ArrayBuffer): boolean {
-    if (this.fileChannel?.readyState === 'open') {
-      this.fileChannel.send(buffer);
-      return true;
-    }
     if (this.isWebSocketRelayMode && this.targetPeerId) {
       this.signaling.sendSignal(this.targetPeerId, {
         isRelayData: true,
         fileBufferArray: Array.from(new Uint8Array(buffer))
       });
       return true;
+    }
+    if (this.fileChannel?.readyState === 'open') {
+      try {
+        this.fileChannel.send(buffer);
+        return true;
+      } catch (error) {
+        console.warn('[WebRTC] File channel send failed', error);
+      }
     }
     return false;
   }
@@ -403,6 +433,10 @@ export class WebRTCManager {
     if (this.connectionTimer) {
       clearTimeout(this.connectionTimer);
       this.connectionTimer = null;
+    }
+    if (this.disconnectionTimer) {
+      clearTimeout(this.disconnectionTimer);
+      this.disconnectionTimer = null;
     }
     this.controlChannel?.close();
     this.fileChannel?.close();

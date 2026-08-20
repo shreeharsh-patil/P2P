@@ -8,6 +8,9 @@ export class SignalingClient {
   private handlers: Map<SignalType | 'ALL', Set<SignalHandler>> = new Map();
   private isConnected: boolean = false;
   private reconnectTimer: any = null;
+  private heartbeatTimer: any = null;
+  private connectPromise: Promise<void> | null = null;
+  private shouldReconnect: boolean = true;
   public peerId: string | null = null;
   public sessionId: string | null = null;
   public targetPeerId: string | null = null;
@@ -33,7 +36,15 @@ export class SignalingClient {
   private sendQueue: SignalMessage[] = [];
 
   public connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      return Promise.resolve();
+    }
+    if (this.connectPromise) {
+      return this.connectPromise;
+    }
+
+    this.shouldReconnect = true;
+    this.connectPromise = new Promise((resolve, reject) => {
       try {
         console.log(`Connecting to signaling server: ${this.serverUrl}`);
         this.ws = new WebSocket(this.serverUrl);
@@ -41,6 +52,7 @@ export class SignalingClient {
         this.ws.onopen = () => {
           console.log(`Signaling WebSocket CONNECTED: ${this.serverUrl}`);
           this.isConnected = true;
+          this.startHeartbeat();
           if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = null;
@@ -54,6 +66,7 @@ export class SignalingClient {
             }
           }
 
+          this.connectPromise = null;
           resolve();
         };
 
@@ -79,20 +92,25 @@ export class SignalingClient {
 
         this.ws.onclose = () => {
           this.isConnected = false;
-          this.scheduleReconnect();
+          this.stopHeartbeat();
+          this.connectPromise = null;
+          if (this.shouldReconnect) this.scheduleReconnect();
         };
 
         this.ws.onerror = (err) => {
           console.error(`Signaling WebSocket connection attempt failed for ${this.serverUrl}`, err);
           if (!this.isConnected) {
             this.scheduleReconnect();
+            this.connectPromise = null;
             reject(err);
           }
         };
       } catch (e) {
+        this.connectPromise = null;
         reject(e);
       }
     });
+    return this.connectPromise;
   }
 
   public createSession(): void {
@@ -151,7 +169,29 @@ export class SignalingClient {
     }
   }
 
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'PING' }));
+      }
+    }, 20_000);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
+
   public disconnect(): void {
+    this.shouldReconnect = false;
+    this.stopHeartbeat();
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.ws) {
       this.ws.close();
       this.ws = null;

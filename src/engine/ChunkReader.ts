@@ -12,7 +12,8 @@ export class ChunkReader {
     this.file = file;
     this.chunkSize = chunkSize;
     this.fileSizeBigInt = BigInt(file.size);
-    this.totalChunks = Math.ceil(file.size / chunkSize);
+    // Send one empty framed packet for a zero-byte file so it can complete.
+    this.totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
   }
 
   public getChunkSize(): number {
