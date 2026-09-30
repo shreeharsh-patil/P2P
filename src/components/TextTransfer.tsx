@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Send, Copy, Check, Clipboard } from 'lucide-react';
+import { normalizeTextMessageLineEndings, prepareTextMessage } from '../utils/textMessages';
 
 export interface TextMessageItem {
   id: string;
@@ -22,11 +23,25 @@ export const TextTransfer: React.FC<TextTransferProps> = ({
   const [inputText, setInputText] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  const sendCurrentMessage = () => {
+    const message = prepareTextMessage(inputText);
+    if (!message || !isConnected) return;
+
+    onSendText(message);
+    setInputText('');
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputText.trim() && isConnected) {
-      onSendText(inputText.trim());
-      setInputText('');
+    sendCurrentMessage();
+  };
+
+  const handleComposerKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Standard chat behavior: Enter sends, Shift+Enter inserts a new line.
+    // Do not intercept Enter while an IME is composing text.
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      sendCurrentMessage();
     }
   };
 
@@ -40,7 +55,9 @@ export const TextTransfer: React.FC<TextTransferProps> = ({
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
-        setInputText(text);
+        // Keep the exact shared layout while making line endings consistent
+        // across Android, Windows, macOS and Linux browsers.
+        setInputText(normalizeTextMessageLineEndings(text));
       }
     } catch (e) {
       console.warn('Clipboard read error', e);
@@ -66,19 +83,21 @@ export const TextTransfer: React.FC<TextTransferProps> = ({
         )}
       </div>
 
-      {/* Input */}
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <input
-          type="text"
+      {/* Composer: textarea is required so pasted/shared multi-line content is not flattened. */}
+      <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+        <textarea
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder={isConnected ? 'Type or paste a message...' : 'Awaiting peer connection'}
+          onKeyDown={handleComposerKeyDown}
+          rows={3}
+          placeholder={isConnected ? 'Type or paste a message... (Shift+Enter for new line)' : 'Awaiting peer connection'}
           disabled={!isConnected}
-          className="flex-1 bg-[#050505] border border-[#1c1c22] focus:border-[#ff2b2b] rounded-sm px-3 py-2 text-xs text-[#f2f2f2] placeholder:text-[#4a4a4a] focus:outline-none disabled:opacity-40 transition-colors font-mono"
+          aria-label="Text message"
+          className="flex-1 min-h-[72px] max-h-40 resize-y overflow-y-auto bg-[#050505] border border-[#1c1c22] focus:border-[#ff2b2b] rounded-sm px-3 py-2 text-xs leading-relaxed text-[#f2f2f2] placeholder:text-[#4a4a4a] focus:outline-none disabled:opacity-40 transition-colors font-mono whitespace-pre-wrap"
         />
         <button
           type="submit"
-          disabled={!isConnected || !inputText.trim()}
+          disabled={!isConnected || !prepareTextMessage(inputText)}
           className="px-4 py-2 bg-[#ff2b2b] hover:bg-[#e51b23] disabled:opacity-40 text-white rounded-sm font-mono font-bold text-xs flex items-center gap-1.5 transition-colors uppercase tracking-wider active:scale-95"
         >
           <Send className="w-3.5 h-3.5" />
@@ -120,9 +139,9 @@ export const TextTransfer: React.FC<TextTransferProps> = ({
                   </button>
                 </div>
               </div>
-              <p className="text-xs text-[#f2f2f2] whitespace-pre-wrap break-words">
+              <div className="text-xs leading-relaxed text-[#f2f2f2] whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                 {msg.text}
-              </p>
+              </div>
             </div>
           ))}
         </div>
