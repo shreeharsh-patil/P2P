@@ -149,7 +149,8 @@ wss.on('connection', (ws: WebSocket) => {
             sessionId: currentSessionId,
             peerId,
             targetPeerId: result.targetPeerId,
-            resumeToken: sessionManager.getPeer(peerId)?.resumeToken
+            resumeToken: sessionManager.getPeer(peerId)?.resumeToken,
+            isHost: result.isHost
           }));
           const session = sessionManager.getSessionInfo(currentSessionId);
           if (session?.clientId && sessionManager.isOnline(session.hostId) &&
