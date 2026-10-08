@@ -184,8 +184,12 @@ export const App: React.FC = () => {
     });
 
     signaling.on('PEER_READY', (msg) => {
+      if (rtc.areChannelsOpen() && !rtc.isWebSocketRelayMode) return;
       rtc.close();
-      if (msg.peerId) rtc.setTargetPeerId(msg.peerId);
+      if (msg.peerId) {
+        rtc.setTargetPeerId(msg.peerId);
+        signaling.sendSignal(msg.peerId, { type: 'restart-request' });
+      }
       setViewState('waiting');
     });
 
@@ -203,6 +207,8 @@ export const App: React.FC = () => {
     signaling.on('PEER_JOINED', (msg) => {
       // Host receives this when a client joins — initiate WebRTC offer immediately
       if (msg.peerId) {
+        // A signaling-only outage must not tear down a healthy direct transfer.
+        if (!msg.forceReconnect && rtc.areChannelsOpen() && !rtc.isWebSocketRelayMode) return;
         showToast('info', 'PEER CONNECTED — INITIATING HANDSHAKE...');
         setViewState('waiting');
         void rtc.initiateConnection(msg.peerId).catch((error) => {
