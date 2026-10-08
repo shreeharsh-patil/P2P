@@ -17,6 +17,7 @@ export class WebRTCManager {
   private targetPeerId: string | null = null;
   private connectionTimer: any = null;
   private disconnectionTimer: any = null;
+  private relayProbeTimer: any = null;
 
   public controlChannel: RTCDataChannel | null = null;
   public fileChannel: RTCDataChannel | null = null;
@@ -81,13 +82,17 @@ export class WebRTCManager {
         clearTimeout(this.disconnectionTimer);
         this.disconnectionTimer = null;
       }
+      if (this.relayProbeTimer) {
+        clearTimeout(this.relayProbeTimer);
+        this.relayProbeTimer = null;
+      }
     }
 
     this.events.onStateChange?.(state);
   }
 
   private activateWebSocketRelayMode(reason: string) {
-    if (this.isWebSocketRelayMode) return;
+    if (this.isWebSocketRelayMode || !this.signaling.isOnline()) return;
     console.log(`[WebRTC] Fallback to WebSocket Relay Mode (${reason})`);
     this.isWebSocketRelayMode = true;
     this.updateState('connected');
@@ -97,10 +102,26 @@ export class WebRTCManager {
   private setupSignalingListeners() {
     this.signaling.on('SIGNAL', async (msg) => {
       if (!msg.payload) return;
-      const { type, sdp, candidate, isRelayData, controlPayload, fileBufferArray } = msg.payload;
+      const { type, sdp, candidate, isRelayData, isRelayProbe, isRelayAck, controlPayload, fileBufferArray } = msg.payload;
+      if (msg.peerId && this.targetPeerId && msg.peerId !== this.targetPeerId) return;
 
       if (msg.peerId && !this.targetPeerId) {
         this.setTargetPeerId(msg.peerId);
+      }
+
+      if (isRelayProbe && msg.peerId) {
+        if (this.signaling.sendSignal(msg.peerId, { isRelayAck: true })) {
+          this.activateWebSocketRelayMode('peer-verified relay');
+        }
+        return;
+      }
+      if (isRelayAck) {
+        this.activateWebSocketRelayMode('relay acknowledgment received');
+        return;
+      }
+      if (type === 'restart-request' && this.isInitiator && msg.peerId) {
+        void this.initiateConnection(msg.peerId).catch(console.error);
+        return;
       }
 
       // Handle WebSocket Relay Data
@@ -141,6 +162,8 @@ export class WebRTCManager {
 
   public async initiateConnection(targetPeerId: string): Promise<void> {
     console.log(`[WebRTC] Initiating WebRTC offer to target peer: ${targetPeerId}`);
+    // Every fresh handshake needs a fresh PC; a failed PC cannot be reused.
+    if (this.peerConnection) this.close();
     this.isInitiator = true;
     this.setTargetPeerId(targetPeerId);
     this.createPeerConnection();
@@ -185,14 +208,15 @@ export class WebRTCManager {
 
     console.log(`[WebRTC] Initializing RTCPeerConnection...`);
     this.peerConnection = new RTCPeerConnection(config);
+    const connection = this.peerConnection;
     this.updateState('connecting');
 
     this.peerConnection.onicecandidate = (event) => {
+      if (this.peerConnection !== connection) return;
       if (event.candidate) {
         const json = event.candidate.toJSON();
         const target = this.targetPeerId;
-        if (target) {
-          this.signaling.sendSignal(target, { candidate: json });
+        if (target && this.signaling.sendSignal(target, { candidate: json })) {
           this.iceCandidatesSent++;
         } else {
           this.pendingOutgoingIceCandidates.push(json);
@@ -201,15 +225,12 @@ export class WebRTCManager {
     };
 
     this.peerConnection.onconnectionstatechange = () => {
-      const state = this.peerConnection?.connectionState;
+      if (this.peerConnection !== connection) return;
+      const state = connection.connectionState;
       console.log(`[WebRTC] PeerConnection state changed: ${state}`);
       if (state === 'connected') {
-        this.updateState('connected');
-      } else if (state === 'failed') {
-        console.warn('[WebRTC] PeerConnection failed → switching to WebSocket Relay');
-        this.activateWebSocketRelayMode('connection failed');
-      } else if (state === 'disconnected') {
-        // This state can be transient while ICE reconnects.
+        this.handleChannelReadiness();
+      } else if (state === 'failed' || state === 'disconnected') {
         this.scheduleRelayFallback();
       } else if (state === 'closed') {
         this.updateState('closed');
@@ -217,17 +238,18 @@ export class WebRTCManager {
     };
 
     this.peerConnection.oniceconnectionstatechange = () => {
-      const iceState = this.peerConnection?.iceConnectionState;
+      if (this.peerConnection !== connection) return;
+      const iceState = connection.iceConnectionState;
       console.log(`[WebRTC] ICE state changed: ${iceState}`);
       if (iceState === 'connected' || iceState === 'completed') {
-        this.updateState('connected');
-      } else if (iceState === 'failed') {
-        console.warn('[WebRTC] ICE failed → switching to WebSocket Relay');
-        this.activateWebSocketRelayMode('ICE failed');
+        this.handleChannelReadiness();
+      } else if (iceState === 'failed' || iceState === 'disconnected') {
+        this.scheduleRelayFallback();
       }
     };
 
     this.peerConnection.ondatachannel = (event) => {
+      if (this.peerConnection !== connection) return;
       const ch = event.channel;
       console.log(`[WebRTC] DataChannel received: ${ch.label}`);
       if (ch.label === 'controlChannel') {
@@ -242,39 +264,73 @@ export class WebRTCManager {
 
   private startConnectionTimeout() {
     if (this.connectionTimer) clearTimeout(this.connectionTimer);
-    // If direct P2P STUN/TURN doesn't pair within 4.5 seconds, auto-fallback to WebSocket Relay
+    // Allow ICE/TURN enough time to negotiate before attempting a verified relay.
     this.connectionTimer = setTimeout(() => {
       if (this.connectionState !== 'connected') {
-        console.log('[WebRTC] 4.5s timeout reached without direct P2P → Activating WebSocket Relay Mode');
-        this.activateWebSocketRelayMode('connection timeout');
+        console.log('[WebRTC] ICE timeout; probing available relay');
+        this.probeRelay();
       }
-    }, 4500);
+    }, 25_000);
+  }
+
+  private handleChannelReadiness(): void {
+    if (this.controlChannel?.readyState === 'open' &&
+        this.fileChannel?.readyState === 'open') {
+      this.isWebSocketRelayMode = false;
+      if (this.connectionState !== 'connected') {
+        this.updateState('connected');
+        this.events.onChannelReady?.();
+      }
+    }
+  }
+
+  private probeRelay(): void {
+    if (this.areChannelsOpen()) return;
+    if (!this.targetPeerId || !this.signaling.isOnline()) {
+      this.updateState('disconnected');
+      return;
+    }
+    // Do not claim success until the remote peer acknowledges the relay.
+    this.signaling.sendSignal(this.targetPeerId, { isRelayProbe: true });
+    if (this.relayProbeTimer) clearTimeout(this.relayProbeTimer);
+    this.relayProbeTimer = setTimeout(() => {
+      this.relayProbeTimer = null;
+      if (!this.areChannelsOpen()) this.updateState('failed');
+    }, 10_000);
   }
 
   private scheduleRelayFallback() {
-    if (this.disconnectionTimer) return;
-
+    if (this.disconnectionTimer || this.isWebSocketRelayMode) return;
+    this.updateState('disconnected');
     this.disconnectionTimer = setTimeout(() => {
       this.disconnectionTimer = null;
-      const connectionState = this.peerConnection?.connectionState;
-      const iceState = this.peerConnection?.iceConnectionState;
-      if (connectionState === 'disconnected' || iceState === 'disconnected') {
-        console.warn('[WebRTC] Connection did not recover; switching to WebSocket Relay');
-        this.activateWebSocketRelayMode('connection remained disconnected');
+      if (this.areChannelsOpen()) return;
+      if (this.targetPeerId && this.signaling.isOnline()) {
+        if (this.isInitiator) {
+          void this.initiateConnection(this.targetPeerId).catch((error) =>
+            console.warn('[WebRTC] Renegotiation failed', error));
+        } else {
+          this.signaling.sendSignal(this.targetPeerId, { type: 'restart-request' });
+          this.startConnectionTimeout();
+        }
+      } else {
+        this.probeRelay();
       }
-    // Backgrounded/minimized browsers may delay ICE activity for several seconds.
-    // Keep an established session available while the browser resumes normally.
-    }, 60_000);
+    }, 12_000);
   }
 
   private flushOutgoingIceCandidates() {
-    if (this.targetPeerId && this.pendingOutgoingIceCandidates.length > 0) {
+    if (this.targetPeerId && this.signaling.isOnline() && this.pendingOutgoingIceCandidates.length > 0) {
       console.log(`[WebRTC] Flushing ${this.pendingOutgoingIceCandidates.length} buffered outgoing ICE candidates to ${this.targetPeerId}`);
       while (this.pendingOutgoingIceCandidates.length > 0) {
         const c = this.pendingOutgoingIceCandidates.shift();
         if (c) {
-          this.signaling.sendSignal(this.targetPeerId, { candidate: c });
-          this.iceCandidatesSent++;
+          if (this.signaling.sendSignal(this.targetPeerId, { candidate: c })) {
+            this.iceCandidatesSent++;
+          } else {
+            this.pendingOutgoingIceCandidates.unshift(c);
+            break;
+          }
         }
       }
     }
@@ -282,6 +338,7 @@ export class WebRTCManager {
 
   private async handleOffer(sdp: RTCSessionDescriptionInit, remotePeerId: string) {
     console.log(`[WebRTC] Handling SDP offer from ${remotePeerId}...`);
+    if (this.peerConnection) this.close();
     this.isInitiator = false;
     this.setTargetPeerId(remotePeerId);
     this.createPeerConnection();
@@ -301,7 +358,7 @@ export class WebRTCManager {
 
   private async handleAnswer(sdp: RTCSessionDescriptionInit) {
     console.log('[WebRTC] Handling SDP answer...');
-    if (this.peerConnection) {
+    if (this.peerConnection?.signalingState === 'have-local-offer') {
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
       await this.processPendingIncomingIceCandidates();
       this.flushOutgoingIceCandidates();
@@ -336,8 +393,7 @@ export class WebRTCManager {
   private setupControlChannel(ch: RTCDataChannel) {
     const handleOpen = () => {
       console.log('[WebRTC] Control DataChannel OPEN');
-      this.updateState('connected');
-      this.events.onChannelReady?.();
+      this.handleChannelReadiness();
     };
 
     ch.onopen = handleOpen;
@@ -366,7 +422,7 @@ export class WebRTCManager {
 
     const handleOpen = () => {
       console.log('[WebRTC] File DataChannel OPEN');
-      this.updateState('connected');
+      this.handleChannelReadiness();
     };
 
     ch.onopen = handleOpen;
@@ -385,11 +441,10 @@ export class WebRTCManager {
 
   public sendControlMessage(msg: ControlMessage): boolean {
     if (this.isWebSocketRelayMode && this.targetPeerId) {
-      this.signaling.sendSignal(this.targetPeerId, {
+      return this.signaling.sendSignal(this.targetPeerId, {
         isRelayData: true,
         controlPayload: msg
       });
-      return true;
     }
     if (this.controlChannel?.readyState === 'open') {
       try {
@@ -404,11 +459,10 @@ export class WebRTCManager {
 
   public sendFileChunk(buffer: ArrayBuffer): boolean {
     if (this.isWebSocketRelayMode && this.targetPeerId) {
-      this.signaling.sendSignal(this.targetPeerId, {
+      return this.signaling.sendSignal(this.targetPeerId, {
         isRelayData: true,
         fileBufferArray: Array.from(new Uint8Array(buffer))
       });
-      return true;
     }
     if (this.fileChannel?.readyState === 'open') {
       try {
@@ -426,7 +480,9 @@ export class WebRTCManager {
   }
 
   public areChannelsOpen(): boolean {
-    return (this.controlChannel?.readyState === 'open' && this.fileChannel?.readyState === 'open') || this.isWebSocketRelayMode;
+    return (this.controlChannel?.readyState === 'open' &&
+            this.fileChannel?.readyState === 'open') ||
+      (this.isWebSocketRelayMode && this.signaling.isOnline());
   }
 
   public close(): void {
@@ -437,6 +493,10 @@ export class WebRTCManager {
     if (this.disconnectionTimer) {
       clearTimeout(this.disconnectionTimer);
       this.disconnectionTimer = null;
+    }
+    if (this.relayProbeTimer) {
+      clearTimeout(this.relayProbeTimer);
+      this.relayProbeTimer = null;
     }
     this.controlChannel?.close();
     this.fileChannel?.close();

@@ -26,6 +26,7 @@ export const App: React.FC = () => {
   const signalingRef = useRef<SignalingClient | null>(null);
   const rtcRef = useRef<WebRTCManager | null>(null);
   const transferRef = useRef<TransferManager | null>(null);
+  const roleRef = useRef<'host' | 'join' | null>(null);
 
   const [signalingConnected, setSignalingConnected] = useState(false);
   const [webrtcState, setWebrtcState] = useState<WebRTCState>('new');
@@ -71,14 +72,14 @@ export const App: React.FC = () => {
         setWebrtcState(state);
         if (state === 'connected') {
           sounds.playConnect();
-          showToast('success', 'DIRECT P2P DATACHANNEL CONNECTED');
+          showToast('success', rtc.isWebSocketRelayMode ? 'RELAY CONNECTED' : 'DIRECT P2P CONNECTED');
           setViewState('connected');
         } else if (state === 'failed') {
           showToast('error', 'WEBRTC NEGOTIATION FAILED');
           setViewState('failed');
         } else if (state === 'disconnected') {
-          showToast('error', 'PEER DISCONNECTED');
-          setViewState('failed');
+          showToast('info', 'CONNECTION INTERRUPTED — RECONNECTING...');
+          setViewState('waiting');
         }
       },
       onTextMessage: (text, senderId, timestamp) => {
@@ -140,15 +141,15 @@ export const App: React.FC = () => {
       } catch (e) {}
     }
 
-    signaling.connect().then(() => {
-      setSignalingConnected(true);
-    }).catch((err) => {
+    signaling.onConnectionChange(setSignalingConnected);
+    signaling.connect().catch((err) => {
       console.error('Signaling connection failed', err);
       showToast('error', 'SIGNALING SERVER UNREACHABLE — RETRYING...');
     });
 
     signaling.on('SESSION_CREATED', (msg) => {
       if (msg.sessionId) {
+        roleRef.current = 'host';
         setSessionId(msg.sessionId);
         setViewState('host');
       }
@@ -157,6 +158,7 @@ export const App: React.FC = () => {
     signaling.on('SESSION_JOINED', (msg) => {
       // Client confirmed to have joined the session — now wait for host's WebRTC offer
       if (msg.sessionId) {
+        roleRef.current = 'join';
         setSessionId(msg.sessionId);
         if (msg.targetPeerId) {
           rtc.setTargetPeerId(msg.targetPeerId);
@@ -167,34 +169,81 @@ export const App: React.FC = () => {
       }
     });
 
+    signaling.on('SESSION_RESUMED', (msg) => {
+      if (!msg.sessionId) return;
+      roleRef.current = msg.isHost ? 'host' : 'join';
+      setSessionId(msg.sessionId);
+      if (rtc.areChannelsOpen() && !rtc.isWebSocketRelayMode) {
+        setViewState('connected');
+        return;
+      }
+      rtc.close();
+      if (msg.targetPeerId) rtc.setTargetPeerId(msg.targetPeerId);
+      setViewState('waiting');
+      showToast('info', 'SESSION RESTORED — REESTABLISHING PEER CONNECTION...');
+    });
+
+    signaling.on('PEER_READY', (msg) => {
+      if (rtc.areChannelsOpen() && !rtc.isWebSocketRelayMode) return;
+      rtc.close();
+      if (msg.peerId) {
+        rtc.setTargetPeerId(msg.peerId);
+        signaling.sendSignal(msg.peerId, { type: 'restart-request' });
+      }
+      setViewState('waiting');
+    });
+
+    signaling.on('PEER_PAUSED', () => {
+      if (rtc.areChannelsOpen() && !rtc.isWebSocketRelayMode) {
+        showToast('info', 'SIGNALING INTERRUPTED — DIRECT TRANSFER STILL ACTIVE');
+        return;
+      }
+      rtc.close();
+      setWebrtcState('disconnected');
+      setViewState('waiting');
+      showToast('info', 'PEER RECONNECTING — SESSION CODE PRESERVED');
+    });
+
     signaling.on('PEER_JOINED', (msg) => {
       // Host receives this when a client joins — initiate WebRTC offer immediately
       if (msg.peerId) {
+        // A signaling-only outage must not tear down a healthy direct transfer.
+        if (!msg.forceReconnect && rtc.areChannelsOpen() && !rtc.isWebSocketRelayMode) return;
         showToast('info', 'PEER CONNECTED — INITIATING HANDSHAKE...');
         setViewState('waiting');
-        rtc.initiateConnection(msg.peerId);
+        void rtc.initiateConnection(msg.peerId).catch((error) => {
+          console.error('[WebRTC] Handshake failed', error);
+          setViewState('failed');
+        });
       }
     });
 
     signaling.on('ERROR', (msg) => {
       showToast('error', msg.error || 'Session error. Please check the code.');
+      rtc.close();
+      transfer.resetSession();
+      signaling.leaveSession();
+      roleRef.current = null;
       setViewState('join');
       setSessionId(null);
     });
 
     signaling.on('PEER_LEFT', () => {
-      // The signaling socket can be suspended when a browser is minimized, while
-      // the direct WebRTC data channels remain usable. Do not tear down that live
-      // session solely because signaling reports that the peer left.
-      if (rtc.areChannelsOpen() && !rtc.isWebSocketRelayMode) {
-        showToast('info', 'SIGNALING PEER PAUSED — KEEPING DIRECT CONNECTION ACTIVE');
-        return;
-      }
-
-      showToast('error', 'REMOTE PEER DISCONNECTED');
+      rtc.close();
+      transfer.resetSession();
       setWebrtcState('disconnected');
-      setViewState('landing');
-      setSessionId(null);
+      if (roleRef.current === 'host' && signaling.sessionId) {
+        // Keep the same host code available for the next connection.
+        setSessionId(signaling.sessionId);
+        setViewState('host');
+        showToast('info', 'PEER LEFT — ROOM READY FOR ANOTHER CONNECTION');
+      } else {
+        signaling.leaveSession();
+        roleRef.current = null;
+        setViewState('join');
+        setSessionId(null);
+        showToast('error', 'HOST LEFT THE SESSION — JOIN AGAIN');
+      }
     });
 
     return () => {
@@ -207,6 +256,9 @@ export const App: React.FC = () => {
 
   const handleCreateSession = () => {
     if (signalingRef.current) {
+      rtcRef.current?.close();
+      transferRef.current?.resetSession();
+      roleRef.current = 'host';
       signalingRef.current.createSession();
       showToast('info', 'GENERATING SESSION CODE...');
     }
@@ -216,6 +268,9 @@ export const App: React.FC = () => {
     const trimmedCode = code.trim();
     if (!trimmedCode) return;
     if (signalingRef.current) {
+      rtcRef.current?.close();
+      transferRef.current?.resetSession();
+      roleRef.current = 'join';
       setSessionId(trimmedCode);
       setViewState('waiting');
       signalingRef.current.joinSession(trimmedCode);
@@ -227,9 +282,9 @@ export const App: React.FC = () => {
     if (rtcRef.current) {
       rtcRef.current.close();
     }
-    if (transferRef.current) {
-      transferRef.current.destroy();
-    }
+    signalingRef.current?.leaveSession();
+    transferRef.current?.resetSession();
+    roleRef.current = null;
     setWebrtcState('new');
     setSessionId(null);
     setViewState('landing');
@@ -495,7 +550,7 @@ export const App: React.FC = () => {
               sessionId={sessionId}
               webrtcState={webrtcState}
               onRegenerateSession={handleCreateSession}
-              onBack={() => { setViewState('landing'); setSessionId(null); }}
+              onBack={handleDisconnect}
             />
 
           /* ============ JOIN SCREEN ============ */
