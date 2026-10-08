@@ -22,6 +22,7 @@ export interface SignalMessage {
   peerId?: string;
   targetPeerId?: string;
   resumeToken?: string;
+  isHost?: boolean;
   payload?: any;
   error?: string;
 }
