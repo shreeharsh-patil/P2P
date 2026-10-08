@@ -3,8 +3,13 @@ export type SignalType =
   | 'SESSION_CREATED'
   | 'JOIN_SESSION'
   | 'SESSION_JOINED'
+  | 'RESUME_SESSION'
+  | 'SESSION_RESUMED'
+  | 'LEAVE_SESSION'
   | 'PEER_JOINED'
   | 'PEER_LEFT'
+  | 'PEER_PAUSED'
+  | 'PEER_READY'
   | 'SIGNAL'
   | 'ERROR'
   | 'PING'
@@ -16,6 +21,7 @@ export interface SignalMessage {
   sessionId?: string;
   peerId?: string;
   targetPeerId?: string;
+  resumeToken?: string;
   payload?: any;
   error?: string;
 }
