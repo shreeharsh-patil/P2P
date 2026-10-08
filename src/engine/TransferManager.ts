@@ -78,13 +78,23 @@ export class TransferManager {
     }
   }
 
+  public resetSession(): void {
+    // A manual session leave must not permanently stop the speed timer or event listeners.
+    for (const id of Array.from(this.queue.keys())) {
+      void this.storageWriters.get(id)?.abort();
+      this.cleanup(id);
+    }
+    this.queue.clear();
+    this.lastBytesTransferred.clear();
+    this.lastProgressEmit.clear();
+    this.callbacks.onQueueUpdated?.([]);
+  }
+
   public destroy() {
+    this.resetSession();
     if (this.speedTimer) {
       clearInterval(this.speedTimer);
       this.speedTimer = null;
-    }
-    for (const id of Array.from(this.queue.keys())) {
-      this.cleanup(id);
     }
   }
 
