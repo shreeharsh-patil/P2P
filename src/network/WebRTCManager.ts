@@ -277,7 +277,10 @@ export class WebRTCManager {
     if (this.controlChannel?.readyState === 'open' &&
         this.fileChannel?.readyState === 'open') {
       this.isWebSocketRelayMode = false;
-      this.handleChannelReadiness();
+      if (this.connectionState !== 'connected') {
+        this.updateState('connected');
+        this.events.onChannelReady?.();
+      }
     }
   }
 
@@ -390,8 +393,7 @@ export class WebRTCManager {
   private setupControlChannel(ch: RTCDataChannel) {
     const handleOpen = () => {
       console.log('[WebRTC] Control DataChannel OPEN');
-      this.updateState('connected');
-      this.events.onChannelReady?.();
+      this.handleChannelReadiness();
     };
 
     ch.onopen = handleOpen;
