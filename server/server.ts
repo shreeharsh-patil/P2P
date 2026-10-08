@@ -161,7 +161,10 @@ wss.on('connection', (ws: WebSocket) => {
             if (result.isHost) {
               client?.ws?.send(JSON.stringify({ type: 'PEER_READY', peerId: session.hostId }));
             }
-            host?.ws?.send(JSON.stringify({ type: 'PEER_JOINED', peerId: session.clientId }));
+            host?.ws?.send(JSON.stringify({
+              type: 'PEER_JOINED', peerId: session.clientId,
+              forceReconnect: !result.isHost
+            }));
           }
           break;
         }
