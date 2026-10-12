@@ -34,11 +34,15 @@ export const HostScreen: React.FC<HostScreenProps> = ({
     return `${m}:${s}`;
   };
 
-  const handleCopyCode = () => {
+  const handleCopyCode = async () => {
     const shareUrl = `${window.location.origin}/?join=${sessionId}`;
-    navigator.clipboard.writeText(shareUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
   };
 
   const isExpired = timeLeft === 0;
@@ -120,12 +124,12 @@ export const HostScreen: React.FC<HostScreenProps> = ({
 
         {/* CONNECTION CODE */}
         <div className="space-y-3">
-          <div className="font-mono text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-[0.12em] text-[#ff3030]">
+          <div className="font-mono text-[clamp(1.5rem,8vw,3rem)] font-extrabold tracking-[0.12em] text-[#ff3030] break-words">
             {formattedCode}
           </div>
 
           {/* ACTION BUTTONS */}
-          <div className="flex items-center justify-center gap-3 pt-1">
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 pt-1">
             <button
               onClick={handleCopyCode}
               disabled={isExpired}

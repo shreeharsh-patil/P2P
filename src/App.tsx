@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { AnimatedBackground } from './components/AnimatedBackground';
 import { TopBar } from './components/TopBar';
 import { Hero } from './components/Hero';
@@ -9,7 +9,6 @@ import { ConnectedScreen } from './components/ConnectedScreen';
 import { HowItWorks } from './components/HowItWorks';
 import { Footer } from './components/Footer';
 import { QRCodeModal } from './components/QRCodeModal';
-import { QRScannerModal } from './components/QRScannerModal';
 import { SettingsModal } from './components/SettingsModal';
 import { Toast, ToastMessage } from './components/Toast';
 import { TextMessageItem } from './components/TextTransfer';
@@ -21,6 +20,8 @@ import { TransferItem } from './engine/types';
 import { sounds } from './utils/audio';
 
 type ViewState = 'landing' | 'host' | 'join' | 'waiting' | 'connected' | 'failed';
+
+const QRScannerModal = lazy(() => import('./components/QRScannerModal').then((module) => ({ default: module.QRScannerModal })));
 
 export const App: React.FC = () => {
   const signalingRef = useRef<SignalingClient | null>(null);
@@ -449,7 +450,7 @@ export const App: React.FC = () => {
           onOpenSettings={() => setIsSettingsModalOpen(true)}
         />
 
-        <main className="flex-1 w-full max-w-[960px] mx-auto py-8">
+        <main className="flex-1 w-full max-w-[960px] mx-auto py-6 sm:py-8">
 
           {/* ============ CONNECTED WORKSPACE ============ */}
           {viewState === 'connected' ? (
@@ -591,14 +592,18 @@ export const App: React.FC = () => {
         />
       )}
 
-      <QRScannerModal
-        isOpen={isQRScannerOpen}
-        onClose={() => setIsQRScannerOpen(false)}
-        onScanSuccess={(code) => {
-          setIsQRScannerOpen(false);
-          handleJoinSession(code);
-        }}
-      />
+      {isQRScannerOpen && (
+        <Suspense fallback={null}>
+          <QRScannerModal
+            isOpen
+            onClose={() => setIsQRScannerOpen(false)}
+            onScanSuccess={(code) => {
+              setIsQRScannerOpen(false);
+              handleJoinSession(code);
+            }}
+          />
+        </Suspense>
+      )}
 
       <SettingsModal
         isOpen={isSettingsModalOpen}

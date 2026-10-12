@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Send, Copy, Check, Clipboard } from 'lucide-react';
+import { Send, Copy, Check, Clipboard, Download } from 'lucide-react';
 import { normalizeTextMessageLineEndings, prepareTextMessage } from '../utils/textMessages';
 
 export interface TextMessageItem {
@@ -64,27 +64,60 @@ export const TextTransfer: React.FC<TextTransferProps> = ({
     }
   };
 
+  const handleExportTranscript = () => {
+    if (messages.length === 0) return;
+
+    const transcript = messages
+      .map((message) => {
+        const time = new Date(message.timestamp).toLocaleString();
+        const sender = message.sender === 'me' ? 'You' : 'Peer';
+        return `[${time}] ${sender}:\n${message.text}`;
+      })
+      .join('\n\n');
+    const url = URL.createObjectURL(new Blob([transcript], { type: 'text/plain;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `shree-chat-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   const recent = messages.slice(-10).reverse();
 
   return (
     <div className="tech-panel p-5 bg-[#09090b] border border-[#1c1c22] space-y-4 font-mono">
       <div className="text-xs text-[#8a8a8a] tracking-[0.25em] uppercase flex items-center justify-between">
         <span>// TEXT CHANNEL</span>
-        {isConnected && (
-          <button
-            type="button"
-            onClick={handlePasteClipboard}
-            className="text-[10px] text-[#ff2b2b] hover:underline flex items-center gap-1 font-mono uppercase tracking-wider"
-            title="Paste from clipboard"
-          >
-            <Clipboard className="w-3 h-3" />
-            Paste Clipboard
-          </button>
-        )}
+        <div className="flex flex-wrap justify-end gap-x-3 gap-y-1">
+          {messages.length > 0 && (
+            <button
+              type="button"
+              onClick={handleExportTranscript}
+              className="text-[10px] text-[#8a8a8a] hover:text-white flex items-center gap-1 font-mono uppercase tracking-wider"
+              title="Download the complete chat transcript"
+            >
+              <Download className="w-3 h-3" />
+              Export
+            </button>
+          )}
+          {isConnected && (
+            <button
+              type="button"
+              onClick={handlePasteClipboard}
+              className="text-[10px] text-[#ff2b2b] hover:underline flex items-center gap-1 font-mono uppercase tracking-wider"
+              title="Paste from clipboard"
+            >
+              <Clipboard className="w-3 h-3" />
+              Paste Clipboard
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Composer: textarea is required so pasted/shared multi-line content is not flattened. */}
-      <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
         <textarea
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
@@ -98,7 +131,7 @@ export const TextTransfer: React.FC<TextTransferProps> = ({
         <button
           type="submit"
           disabled={!isConnected || !prepareTextMessage(inputText)}
-          className="px-4 py-2 bg-[#ff2b2b] hover:bg-[#e51b23] disabled:opacity-40 text-white rounded-sm font-mono font-bold text-xs flex items-center gap-1.5 transition-colors uppercase tracking-wider active:scale-95"
+          className="px-4 py-2 sm:py-3 bg-[#ff2b2b] hover:bg-[#e51b23] disabled:opacity-40 text-white rounded-sm font-mono font-bold text-xs flex items-center justify-center gap-1.5 transition-colors uppercase tracking-wider active:scale-95"
         >
           <Send className="w-3.5 h-3.5" />
           Send

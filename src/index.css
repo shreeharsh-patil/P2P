@@ -20,16 +20,21 @@
     background-color: var(--bg-base);
     color: var(--text-primary);
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Inter', 'Geist', sans-serif;
-    antialiased: true;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
+    min-height: 100dvh;
     overflow-x: hidden;
-    selection-background-color: var(--accent-crimson);
-    selection-color: #ffffff;
   }
 
   code, pre, .font-mono {
     font-family: 'Geist Mono', 'JetBrains Mono', 'IBM Plex Mono', monospace;
   }
+}
+
+::selection {
+  background: var(--accent-crimson);
+  color: #ffffff;
 }
 
 /* Background & Lighting */
@@ -174,13 +179,12 @@
 
 /* Respect prefers-reduced-motion for CSS animations */
 @media (prefers-reduced-motion: reduce) {
-  .animate-pulse,
-  .animate-ping,
-  .radar-sweep,
-  .animate-fade-in-up,
-  .animate-scale-in,
-  .animate-glow-pulse,
-  .animate-striped-progress {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
