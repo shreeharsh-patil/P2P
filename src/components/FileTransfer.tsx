@@ -2,7 +2,8 @@ import React, { useRef, useState, useMemo } from 'react';
 import { 
   UploadCloud, File, FileText, Image, Video, Music, Archive, 
   Pause, Play, X, ShieldCheck, AlertCircle, Download, Eye,
-  Folder, FolderUp, CheckCheck, Package, Layers, XCircle, Zap
+  Folder, FolderUp, CheckCheck, Package, Layers, XCircle, Zap,
+  Search, ArrowUpDown
 } from 'lucide-react';
 import { TransferItem } from '../engine/types';
 import { formatBytes, formatTimeRemaining, truncateFileName } from '../utils/formatters';
@@ -31,6 +32,7 @@ interface FileTransferProps {
 }
 
 type FilterTab = 'all' | 'active' | 'completed' | 'pending';
+type QueueSort = 'recent' | 'name' | 'size';
 
 const isArchive = (name: string, type: string) =>
   type.includes('zip') ||
@@ -92,6 +94,8 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const [previewItem, setPreviewItem] = useState<TransferItem | null>(null);
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
+  const [queueQuery, setQueueQuery] = useState('');
+  const [queueSort, setQueueSort] = useState<QueueSort>('recent');
   const [isZipping, setIsZipping] = useState(false);
 
   const openFilePicker = () => {
@@ -249,17 +253,39 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
   }, [queue]);
 
   const filteredQueue = useMemo(() => {
+    let items: TransferItem[];
     switch (activeTab) {
       case 'active':
-        return queue.filter((i) => i.status === 'transferring' || i.status === 'paused' || i.status === 'verifying');
+        items = queue.filter((i) => i.status === 'transferring' || i.status === 'paused' || i.status === 'verifying');
+        break;
       case 'completed':
-        return queue.filter((i) => i.status === 'completed');
+        items = queue.filter((i) => i.status === 'completed');
+        break;
       case 'pending':
-        return queue.filter((i) => i.status === 'offering' || i.status === 'queued');
+        items = queue.filter((i) => i.status === 'offering' || i.status === 'queued');
+        break;
       default:
-        return queue;
+        items = [...queue];
     }
-  }, [queue, activeTab]);
+
+    const normalizedQuery = queueQuery.trim().toLocaleLowerCase();
+    if (normalizedQuery) {
+      items = items.filter((item) =>
+        [item.name, item.relativePath, item.status, item.error]
+          .filter(Boolean)
+          .some((value) => value!.toLocaleLowerCase().includes(normalizedQuery))
+      );
+    }
+
+    if (queueSort === 'name') {
+      items.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    } else if (queueSort === 'size') {
+      items.sort((a, b) => b.size - a.size);
+    } else {
+      items.reverse();
+    }
+    return items;
+  }, [queue, activeTab, queueQuery, queueSort]);
 
   const showProgress = (item: TransferItem) =>
     item.status === 'transferring' || item.status === 'paused' || item.status === 'verifying';
@@ -495,20 +521,21 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
           </div>
         )}
 
-        {/* FILTER TABS */}
+        {/* FILTER TABS AND QUEUE SEARCH */}
         {queue.length > 0 && (
-          <div className="flex items-center gap-2 pt-1 pb-1 text-xs">
-            {(['all', 'active', 'completed', 'pending'] as FilterTab[]).map((tab) => {
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 pb-1 text-xs">
+            <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+              {(['all', 'active', 'completed', 'pending'] as FilterTab[]).map((tab) => {
               const count =
                 tab === 'all'
                   ? queue.length
                   : tab === 'active'
-                  ? metrics.active + metrics.paused
+                  ? queue.filter((item) => ['transferring', 'paused', 'verifying'].includes(item.status)).length
                   : tab === 'completed'
                   ? metrics.completed
                   : metrics.pendingOffers;
 
-              return (
+                return (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -521,7 +548,34 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
                   {tab} ({count})
                 </button>
               );
-            })}
+              })}
+            </div>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <label className="relative flex-1 sm:w-52">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#666]" aria-hidden="true" />
+                <input
+                  type="search"
+                  value={queueQuery}
+                  onChange={(event) => setQueueQuery(event.target.value)}
+                  placeholder="Find a transfer..."
+                  aria-label="Search transfers by name, path, or status"
+                  className="w-full bg-[#09090b] border border-[#26262e] focus:border-[#ff2b2b]/70 rounded-xs pl-8 pr-2 py-2 text-[11px] text-[#f2f2f2] placeholder:text-[#555] focus:outline-none"
+                />
+              </label>
+              <label className="relative shrink-0">
+                <ArrowUpDown className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#777] pointer-events-none" aria-hidden="true" />
+                <select
+                  value={queueSort}
+                  onChange={(event) => setQueueSort(event.target.value as QueueSort)}
+                  aria-label="Sort transfers"
+                  className="h-full appearance-none bg-[#09090b] border border-[#26262e] rounded-xs pl-7 pr-2 py-2 text-[11px] text-[#aaa] focus:border-[#ff2b2b]/70 focus:outline-none"
+                >
+                  <option value="recent">Recent</option>
+                  <option value="name">Name</option>
+                  <option value="size">Largest</option>
+                </select>
+              </label>
+            </div>
           </div>
         )}
 
@@ -532,7 +586,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
           </div>
         ) : filteredQueue.length === 0 ? (
           <div className="tech-panel p-6 bg-[#09090b] border border-[#1c1c22] text-center text-xs text-[#4a4a4a]">
-            NO TRANSFERS IN THIS CATEGORY.
+            {queueQuery.trim() ? 'NO MATCHING TRANSFERS — Try another name, folder, or status.' : 'NO TRANSFERS IN THIS CATEGORY.'}
           </div>
         ) : (
           <div className="space-y-3">
