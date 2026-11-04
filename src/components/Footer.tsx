@@ -8,10 +8,6 @@ export const Footer: React.FC = () => {
           SHREE
         </div>
 
-        <div className="text-[11px] font-mono text-[#4a4a4a] tracking-wider">
-          Peer-to-peer file &amp; text transfer
-        </div>
-
         <div className="flex items-center gap-2.5 text-[11px] font-mono text-[#4a4a4a] tracking-wider">
           <span>
             Made by{' '}
