@@ -8,20 +8,20 @@ export const Footer: React.FC = () => {
           SHREE
         </div>
 
-        <div className="flex items-center gap-2.5 text-[11px] font-mono text-[#4a4a4a] tracking-wider">
+        <div className="flex items-center gap-2.5 text-[11px] font-mono text-[#f2f2f2] tracking-wider">
           <span>
             Made by{' '}
             <a
               href="https://github.com/shreeharsh-patil"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#8a8a8a] hover:text-[#f2f2f2] transition-colors"
+              className="hover:opacity-70 transition-opacity"
             >
               Shreeharsh
             </a>
           </span>
 
-          <span aria-hidden="true" className="text-[#26262e]">
+          <span aria-hidden="true">
             /
           </span>
 
@@ -29,7 +29,7 @@ export const Footer: React.FC = () => {
             href="https://github.com/shreeharsh-patil/P2P"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 hover:text-[#f2f2f2] transition-colors"
+            className="inline-flex items-center gap-1.5 hover:opacity-70 transition-opacity"
             aria-label="View P2P on GitHub"
           >
             <svg
