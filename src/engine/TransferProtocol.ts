@@ -87,6 +87,15 @@ export class TransferProtocol {
     const offset = view.getBigUint64(24, false);
     const payloadLength = view.getUint32(32, false);
 
+    // The frame carries exactly one payload: any length mismatch means the
+    // stream was corrupted or a peer is trying to confuse the reader.
+    const actualPayloadLength = buffer.byteLength - HEADER_SIZE;
+    if (payloadLength !== actualPayloadLength) {
+      throw new Error(
+        `Packet length mismatch: header says ${payloadLength}, buffer has ${actualPayloadLength}`
+      );
+    }
+
     // 4. Payload
     const payload = new Uint8Array(buffer, HEADER_SIZE, payloadLength);
 

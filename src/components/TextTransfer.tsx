@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Send, Copy, Check, Clipboard, Download } from 'lucide-react';
 import { normalizeTextMessageLineEndings, prepareTextMessage } from '../utils/textMessages';
 
@@ -22,6 +22,15 @@ export const TextTransfer: React.FC<TextTransferProps> = ({
 }) => {
   const [inputText, setInputText] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const copiedTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current !== null) {
+        window.clearTimeout(copiedTimerRef.current);
+      }
+    };
+  }, []);
 
   const sendCurrentMessage = () => {
     const message = prepareTextMessage(inputText);
@@ -45,10 +54,17 @@ export const TextTransfer: React.FC<TextTransferProps> = ({
     }
   };
 
-  const handleCopy = (id: string, text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+  const handleCopy = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      if (copiedTimerRef.current !== null) {
+        window.clearTimeout(copiedTimerRef.current);
+      }
+      copiedTimerRef.current = window.setTimeout(() => setCopiedId(null), 2000);
+    } catch (error) {
+      console.warn('Clipboard write failed', error);
+    }
   };
 
   const handlePasteClipboard = async () => {
@@ -160,9 +176,11 @@ export const TextTransfer: React.FC<TextTransferProps> = ({
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                   <button
+                    type="button"
                     onClick={() => handleCopy(msg.id, msg.text)}
                     className="p-0.5 text-[#8a8a8a] hover:text-[#f2f2f2] transition-colors"
                     title="Copy text"
+                    aria-label="Copy message text"
                   >
                     {copiedId === msg.id ? (
                       <Check className="w-3 h-3 text-emerald-400" />

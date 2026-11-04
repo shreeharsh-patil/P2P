@@ -13,11 +13,21 @@ export class ResumeManager {
   public async initFromStorage(): Promise<void> {
     const saved = await IDBStorage.getTransferState(this.transferId);
     if (saved && Array.isArray(saved.receivedChunks)) {
-      this.receivedChunks = new Set(saved.receivedChunks);
+      this.receivedChunks = new Set(
+        saved.receivedChunks.filter(
+          (index: unknown): index is number =>
+            Number.isInteger(index) && (index as number) >= 0 && (index as number) < this.totalChunks
+        )
+      );
     }
   }
 
   public async markChunkReceived(chunkIndex: number): Promise<void> {
+    // Ignore out-of-range indexes from a misbehaving peer; otherwise they
+    // would inflate the received set and could make a partial file look complete.
+    if (!Number.isInteger(chunkIndex) || chunkIndex < 0 || chunkIndex >= this.totalChunks) {
+      return;
+    }
     this.receivedChunks.add(chunkIndex);
     if (this.receivedChunks.size % 10 === 0 || this.receivedChunks.size === this.totalChunks) {
       await this.saveState();

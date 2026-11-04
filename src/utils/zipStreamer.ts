@@ -54,8 +54,16 @@ export class ZipStreamer {
         dataBytes = entry.data;
       }
 
-      // Normalize path to use forward slashes and remove leading slashes
-      const normalizedPath = entry.name.replace(/\\/g, '/').replace(/^\/+/, '');
+      // Normalize to a safe relative path: forward slashes, no absolute
+      // prefix, no drive letters and no parent-directory segments. Peer-
+      // controlled names must never escape the extraction folder.
+      const normalizedPath = entry.name
+        .replace(/\\/g, '/')
+        .replace(/^[a-zA-Z]:/, '')
+        .replace(/^\/+/, '')
+        .split('/')
+        .filter((segment) => segment && segment !== '.' && segment !== '..')
+        .join('/') || 'file';
       const nameBytes = new TextEncoder().encode(normalizedPath);
       const crc = calculateCRC32(dataBytes);
 

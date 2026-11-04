@@ -26,13 +26,25 @@ export class SignalingClient {
     const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' ||
       hostname.startsWith('192.168.') || hostname.startsWith('10.') ||
       hostname.endsWith('.local');
-    this.serverUrl = serverUrl || envUrl || (isLocal
-      ? `${protocol}//${hostname}:4050/ws`
-      : 'wss://p2p-9ewe.onrender.com/ws');
+    if (serverUrl) {
+      this.serverUrl = serverUrl;
+    } else if (envUrl) {
+      this.serverUrl = envUrl;
+    } else {
+      // No global third-party fallback: talk to the signaling server that is
+      // deployed alongside this app. Local development uses the dev port.
+      this.serverUrl = isLocal
+        ? `${protocol}//${hostname}:4050/ws`
+        : `${protocol}//${window.location.host}/ws`;
+    }
   }
 
   public isOnline(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  public getServerUrl(): string {
+    return this.serverUrl;
   }
 
   public onConnectionChange(listener: (connected: boolean) => void): void {
@@ -216,7 +228,15 @@ export class SignalingClient {
   }
 
   private emit(type: SignalType | 'ALL', msg: SignalMessage): void {
-    this.handlers.get(type)?.forEach((handler) => handler(msg));
+    this.handlers.get(type)?.forEach((handler) => {
+      // One faulty listener must not prevent the remaining listeners from
+      // seeing the message (or corrupt the outer JSON try/catch).
+      try {
+        handler(msg);
+      } catch (error) {
+        console.error(`[Signaling] Handler for ${type} failed`, error);
+      }
+    });
   }
 
   private startHeartbeat(socket: WebSocket): void {

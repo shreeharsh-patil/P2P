@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Download, Eye, FileText } from 'lucide-react';
 import { TransferItem } from '../engine/types';
 
@@ -7,14 +7,56 @@ interface FilePreviewModalProps {
   onClose: () => void;
 }
 
+/**
+ * Text files are read and rendered as plain text. They are never loaded into
+ * an iframe: a peer-supplied HTML/JS file would otherwise execute with the
+ * app's origin and could read local storage or drive the signaling session.
+ */
+const TextPreview: React.FC<{ url: string }> = ({ url }) => {
+  const [text, setText] = useState('Loading…');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(url)
+      .then((response) => response.text())
+      .then((content) => {
+        if (!cancelled) setText(content.slice(0, 200_000));
+      })
+      .catch(() => {
+        if (!cancelled) setText('Unable to preview this file.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  return (
+    <pre className="w-full h-[50vh] overflow-auto bg-black text-[#00ff88] font-mono text-xs p-4 rounded border border-[#1a1a20] whitespace-pre-wrap break-words">
+      {text}
+    </pre>
+  );
+};
+
 export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ item, onClose }) => {
+  useEffect(() => {
+    if (!item) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [item, onClose]);
+
   if (!item || !item.downloadUrl) return null;
 
   const isImage = item.type.startsWith('image/');
   const isVideo = item.type.startsWith('video/');
   const isAudio = item.type.startsWith('audio/');
-  const isPDF = item.type.includes('pdf');
-  const isText = item.type.includes('text') || item.name.endsWith('.txt') || item.name.endsWith('.md') || item.name.endsWith('.json') || item.name.endsWith('.js') || item.name.endsWith('.ts');
+  const isPDF = item.type === 'application/pdf' || item.name.toLowerCase().endsWith('.pdf');
+  const isText =
+    item.type.startsWith('text/') ||
+    ['.txt', '.md', '.json', '.js', '.ts', '.tsx', '.jsx', '.css', '.html', '.csv', '.log']
+      .some((extension) => item.name.toLowerCase().endsWith(extension));
 
   const handleDownload = () => {
     const a = document.createElement('a');
@@ -27,7 +69,12 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ item, onClos
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-scale-in">
-      <div className="bg-[#09090b] border border-[#222] rounded-md max-w-3xl w-full overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] flex flex-col max-h-[85vh]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Preview of ${item.name}`}
+        className="bg-[#09090b] border border-[#222] rounded-md max-w-3xl w-full overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] flex flex-col max-h-[85vh]"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#1c1c22]">
           <div className="flex items-center gap-2 text-xs font-mono font-bold text-white uppercase tracking-wider truncate pr-4">
@@ -36,6 +83,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ item, onClos
           </div>
           <button
             onClick={onClose}
+            aria-label="Close preview"
             className="p-1 text-[#888] hover:text-white hover:bg-[#1a1a20] rounded transition-colors"
           >
             <X className="w-5 h-5" />
@@ -66,14 +114,11 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ item, onClos
             <iframe
               src={item.downloadUrl}
               title={item.name}
+              sandbox=""
               className="w-full h-[60vh] rounded border border-[#1a1a20]"
             />
           ) : isText ? (
-            <iframe
-              src={item.downloadUrl}
-              title={item.name}
-              className="w-full h-[50vh] bg-black text-[#00ff88] font-mono p-4 rounded border border-[#1a1a20]"
-            />
+            <TextPreview url={item.downloadUrl} />
           ) : (
             <div className="text-center space-y-4 py-8">
               <FileText className="w-12 h-12 text-[#ff2b2b] mx-auto opacity-70" />

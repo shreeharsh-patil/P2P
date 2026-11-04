@@ -23,6 +23,23 @@ type ViewState = 'landing' | 'host' | 'join' | 'waiting' | 'connected' | 'failed
 
 const QRScannerModal = lazy(() => import('./components/QRScannerModal').then((module) => ({ default: module.QRScannerModal })));
 
+function readAutoAcceptPreference(): boolean {
+  try {
+    return localStorage.getItem('shree_auto_accept') === 'true';
+  } catch {
+    // localStorage can throw in strict privacy modes; default to off.
+    return false;
+  }
+}
+
+function writeAutoAcceptPreference(value: boolean): void {
+  try {
+    localStorage.setItem('shree_auto_accept', String(value));
+  } catch {
+    // Persisting the preference must never break toggling it.
+  }
+}
+
 export const App: React.FC = () => {
   const signalingRef = useRef<SignalingClient | null>(null);
   const rtcRef = useRef<WebRTCManager | null>(null);
@@ -44,9 +61,7 @@ export const App: React.FC = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // Engine Preferences
-  const [autoAcceptFiles, setAutoAcceptFiles] = useState<boolean>(() => {
-    return localStorage.getItem('shree_auto_accept') === 'true';
-  });
+  const [autoAcceptFiles, setAutoAcceptFiles] = useState<boolean>(readAutoAcceptPreference);
   const [chunkSize, setChunkSize] = useState<number>(60 * 1024);
   const [preferDirectSave, setPreferDirectSave] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
@@ -83,9 +98,14 @@ export const App: React.FC = () => {
           setViewState('waiting');
         }
       },
+      onRelayModeChange: (active) => {
+        if (active) {
+          showToast('info', 'DIRECT LINK FAILED — USING SERVER RELAY (SLOWER, NOT PRIVATE)');
+        }
+      },
       onTextMessage: (text, senderId, timestamp) => {
         setTextMessages((prev) => [
-          ...prev,
+          ...prev.slice(-499),
           { id: Math.random().toString(36).substring(2, 9), sender: 'peer', text, timestamp }
         ]);
         sounds.playConnect();
@@ -107,7 +127,7 @@ export const App: React.FC = () => {
         showToast('info', `FILE OFFER: ${item.name}`);
       }
     });
-    transfer.setAutoAccept(localStorage.getItem('shree_auto_accept') === 'true');
+    transfer.setAutoAccept(readAutoAcceptPreference());
     transferRef.current = transfer;
 
     const extractJoinCodeFromUrl = (): string | null => {
@@ -129,24 +149,6 @@ export const App: React.FC = () => {
 
       return null;
     };
-
-    const joinCode = extractJoinCodeFromUrl();
-    if (joinCode) {
-      setSessionId(joinCode);
-      setViewState('waiting');
-      showToast('info', `AUTO-JOINING SESSION #${joinCode}...`);
-      signaling.joinSession(joinCode);
-      // Clean URL bar to prevent reload loop
-      try {
-        window.history.replaceState({}, document.title, window.location.pathname);
-      } catch (e) {}
-    }
-
-    signaling.onConnectionChange(setSignalingConnected);
-    signaling.connect().catch((err) => {
-      console.error('Signaling connection failed', err);
-      showToast('error', 'SIGNALING SERVER UNREACHABLE — RETRYING...');
-    });
 
     signaling.on('SESSION_CREATED', (msg) => {
       if (msg.sessionId) {
@@ -245,6 +247,27 @@ export const App: React.FC = () => {
         setSessionId(null);
         showToast('error', 'HOST LEFT THE SESSION — JOIN AGAIN');
       }
+    });
+
+    signaling.onConnectionChange(setSignalingConnected);
+
+    // Register all handlers and connect before issuing the join request, so
+    // every response has a handler waiting for it.
+    const joinCode = extractJoinCodeFromUrl();
+    if (joinCode) {
+      setSessionId(joinCode);
+      setViewState('waiting');
+      showToast('info', `AUTO-JOINING SESSION #${joinCode}...`);
+      signaling.joinSession(joinCode);
+      // Clean URL bar to prevent reload loop
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {}
+    }
+
+    signaling.connect().catch((err) => {
+      console.error('Signaling connection failed', err);
+      showToast('error', 'SIGNALING SERVER UNREACHABLE — RETRYING...');
     });
 
     return () => {
@@ -392,7 +415,7 @@ export const App: React.FC = () => {
   const handleToggleAutoAccept = () => {
     setAutoAcceptFiles((prev) => {
       const next = !prev;
-      localStorage.setItem('shree_auto_accept', String(next));
+      writeAutoAcceptPreference(next);
       if (transferRef.current) {
         transferRef.current.setAutoAccept(next);
       }
@@ -403,7 +426,7 @@ export const App: React.FC = () => {
 
   const handleAutoAcceptChange = (val: boolean) => {
     setAutoAcceptFiles(val);
-    localStorage.setItem('shree_auto_accept', String(val));
+    writeAutoAcceptPreference(val);
     if (transferRef.current) {
       transferRef.current.setAutoAccept(val);
     }
@@ -425,14 +448,16 @@ export const App: React.FC = () => {
   };
 
   const handleSendText = (text: string) => {
-    if (rtcRef.current) {
-      const sent = rtcRef.current.sendTextMessage(text);
-      if (sent) {
-        setTextMessages((prev) => [
-          ...prev,
-          { id: Math.random().toString(36).substring(2, 9), sender: 'me', text, timestamp: Date.now() }
-        ]);
-      }
+    const trimmed = text.trim();
+    if (!trimmed || !rtcRef.current) return;
+    const sent = rtcRef.current.sendTextMessage(trimmed);
+    if (sent) {
+      setTextMessages((prev) => [
+        ...prev.slice(-499),
+        { id: Math.random().toString(36).substring(2, 9), sender: 'me', text: trimmed, timestamp: Date.now() }
+      ]);
+    } else {
+      showToast('error', 'NOT CONNECTED — MESSAGE NOT SENT');
     }
   };
 
@@ -530,7 +555,7 @@ export const App: React.FC = () => {
                 <button
                   onClick={() => {
                     handleDisconnect();
-                    setTimeout(() => handleCreateSession(), 100);
+                    handleCreateSession();
                   }}
                   className="px-5 py-2 text-xs font-mono text-[#ff3030] border border-[#ff3030]/40 bg-[#ff3030]/10 hover:bg-[#ff3030]/20 uppercase tracking-wider transition-colors"
                 >

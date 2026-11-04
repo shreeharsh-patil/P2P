@@ -31,9 +31,9 @@
 2. **10GB+ ARCHITECTURE**:
    Employs `File.slice()` progressive reading, WebRTC DataChannel backpressure control, and native disk streaming (`FileSystemWritableFileStream` / OPFS) to ensure memory usage remains strictly bounded (typically <5MB RAM) regardless of file size.
 3. **AUTOMATIC INTEGRITY VERIFICATION**:
-   Computes and verifies SHA-256 cryptographic hashes on-the-fly using the Web Crypto API.
+   Computes and verifies SHA-256 cryptographic hashes using the Web Crypto API. Files of any size are hashed in 4MB blocks with a chunk-tree construction, so every byte is covered (no sampling) and memory stays bounded.
 4. **RESUME & RECONNECT**:
-   Tracks received chunk bitsets in IndexedDB to automatically resume interrupted transfers without re-sending completed chunks.
+   Tracks received chunk bitsets in IndexedDB to resume interrupted transfers without re-sending completed chunks, and re-establishes signaling sessions transparently over socket drops.
 
 ---
 
@@ -42,12 +42,12 @@
 ```mermaid
 graph TD
     subgraph "Signaling & Handshake Gateway"
-        A["SHREE SIGNALING BACKEND<br><i>(Node.js / WebSockets / Port 4000)</i>"]
+        A["SHREE SIGNALING BACKEND<br><i>(Node.js / WebSockets / Port 4050)</i>"]
     end
 
     subgraph "Sender Architecture - Device A"
         B1["Source File Access"]
-        B2["ChunkReader<br><i>(File.slice() 256KB Slices)</i>"]
+        B2["ChunkReader<br><i>(File.slice() adaptive slices)</i>"]
         B3["BackpressureController<br><i>(Monitors bufferedAmount)</i>"]
         B4["36-Byte Binary Framing Protocol"]
     end
@@ -105,7 +105,7 @@ File chunks sent over `RTCDataChannel` use a zero-overhead **36-byte framed bina
 The core transfer engine in `src/engine/` is completely decoupled from the presentation interface:
 
 - **`BackpressureController`**: Monitors `dataChannel.bufferedAmount` against low/high watermarks to pause slice reading when the send buffer fills up.
-- **`ChunkReader`**: Asynchronously reads 256KB slices using `File.slice()` and safe `BigInt` offset arithmetic.
+- **`ChunkReader`**: Asynchronously reads adaptive slices using `File.slice()` and safe `BigInt` offset arithmetic.
 - **`StorageAdapter`**:
   - *Strategy 1*: Direct Disk Streaming via File System Access API (`showSaveFilePicker`).
   - *Strategy 2*: Origin Private File System (`OPFS`).
@@ -146,14 +146,14 @@ npm run test
 #### 3. Launch Development Servers
 
 ```bash
-# Terminal 1: Start Signaling Server (Port 4000)
+# Terminal 1: Start Signaling Server (Port 4050)
 npm run server
 
-# Terminal 2: Start Vite Dev Client (Port 3000)
+# Terminal 2: Start Vite Dev Client (Port 3051)
 npm run dev
 ```
 
-Access interface via: `http://localhost:3000` (Open in two separate tabs or devices to test WebRTC DataChannel connection)
+Access interface via: `http://localhost:3051` (Open in two separate tabs or devices to test WebRTC DataChannel connection)
 
 ---
 
@@ -166,8 +166,9 @@ Launch the complete P2P signaling stack using Docker Compose:
 docker-compose up --build -d
 ```
 
-Application accessible live at: `http://localhost:4000`
+Application accessible live at: `http://localhost:4050` — the production image builds the static client and the signaling server into one Node process that serves both (`/ws`, `/api/*`, and the app shell).
 
+> **Security note:** copy `.env.example` to `.env` and set a strong `TURN_CREDENTIAL` before running compose. The relay password is never committed to git.
 ---
 
 ## 🧪 Testing & Engine Verification
@@ -180,8 +181,10 @@ npm run test
 
 **Unit Test Scope:**
 
-- Binary header encoding/decoding and BigInt offset preservation (`transferProtocol.test.ts`).
+- Binary header encoding/decoding, packet length validation and BigInt offset preservation (`transferProtocol.test.ts`).
+- Integrity hashing (both hashing paths, corruption detection) and misbehaving-peer input guarding (`engineGuards.test.ts`).
 - Progressive `File.slice()` chunking and backpressure control (`chunkReader.test.ts`).
+- Reconnect/resume, crypto engine, chunk reader, ZIP streaming and text-message handling.
 
 ---
 
@@ -192,16 +195,16 @@ P2P/
 ├─ src/                             (Core WebRTC Application & Engine Architecture)
 │  ├─ engine/                       (Decoupled P2P Engine Components)
 │  │  ├─ BackpressureController.ts  (WebRTC buffer threshold watcher)
-│  │  ├─ ChunkReader.ts             (256KB File.slice() streaming reader)
+│  │  ├─ ChunkReader.ts             (chunked File.slice() streaming reader)
 │  │  ├─ IntegrityManager.ts        (Web Crypto SHA-256 calculation manager)
 │  │  ├─ ResumeManager.ts           (IndexedDB bitset tracker for interrupted transfers)
 │  │  ├─ StorageAdapter.ts          (Direct FS Access, OPFS, and IndexedDB adapter)
 │  │  └─ transferProtocol.ts        (36-byte binary header encoder and parser)
 │  ├─ components/                   (UI elements: file dropzones, text editors, progress bars)
 │  ├─ hooks/                        (WebRTC connection state hooks and signals)
-│  └─ main.ts                       (Frontend application entrypoint)
+│  └─ main.tsx                       (Frontend application entrypoint)
 ├─ server/                          (Signaling Backend Core)
-│  └─ index.js                      (Node.js WebSocket signaling server for SDP/ICE exchange)
+│  └─ server.ts                      (Node.js WebSocket signaling server for SDP/ICE exchange)
 ├─ tests/                           (Unit tests for binary framing protocols and slice readers)
 ├─ docker-compose.yml               (Containerized deployment configuration)
 ├─ package.json                     (Dependencies, scripts, and build manifest)

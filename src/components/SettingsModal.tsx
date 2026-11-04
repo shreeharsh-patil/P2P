@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, Settings, Cpu, HardDrive, Volume2, Zap } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -14,6 +14,49 @@ interface SettingsModalProps {
   onSoundToggle: () => void;
 }
 
+interface ToggleRowProps {
+  title: string;
+  description?: string;
+  checked: boolean;
+  onToggle: () => void;
+  icon?: React.ReactNode;
+}
+
+/**
+ * Accessible switch: a real button with switch semantics and an associated
+ * visible state, instead of a clickable div wrapping a dead checkbox.
+ */
+const ToggleRow: React.FC<ToggleRowProps> = ({ title, description, checked, onToggle, icon }) => {
+  const id = React.useId();
+  return (
+    <div className="p-3 bg-[#050505] rounded-xs border border-[#1c1c22] flex items-center justify-between gap-4 hover:border-[#26262e] transition-colors">
+      <div id={id}>
+        <div className="text-xs font-bold text-[#f2f2f2] flex items-center gap-2">
+          {icon}
+          <span>{title}</span>
+        </div>
+        {description && <div className="text-[10px] text-[#8a8a8a] mt-0.5">{description}</div>}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-labelledby={id}
+        onClick={onToggle}
+        className={`relative flex-shrink-0 w-10 h-5 rounded-full border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff2b2b] ${
+          checked ? 'bg-[#180a0c] border-[#ff2b2b]' : 'bg-[#141418] border-[#26262e]'
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 w-3.5 h-3.5 rounded-full transition-transform ${
+            checked ? 'translate-x-5 bg-[#ff2b2b]' : 'translate-x-0 bg-[#8a8a8a]'
+          }`}
+        />
+      </button>
+    </div>
+  );
+};
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
@@ -26,6 +69,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   soundEnabled,
   onSoundToggle
 }) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const chunkSizes = [
@@ -36,14 +88,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-      <div className="tech-panel p-6 max-w-md w-full relative bg-[#09090b] border border-[#ff2b2b]/50 shadow-[0_0_30px_rgba(255,43,43,0.15)] font-mono space-y-5">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Settings"
+        className="tech-panel p-6 max-w-md w-full relative bg-[#09090b] border border-[#ff2b2b]/50 shadow-[0_0_30px_rgba(255,43,43,0.15)] font-mono space-y-5"
+      >
         <div className="flex items-center justify-between border-b border-[#1c1c22] pb-3">
           <div className="flex items-center gap-2 text-[#ff2b2b]">
             <Settings className="w-5 h-5" />
             <h3 className="text-sm font-bold text-[#f2f2f2] tracking-wide">Settings</h3>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Close settings"
             className="p-1 text-[#8a8a8a] hover:text-white rounded-xs transition-colors"
           >
             <X className="w-5 h-5" />
@@ -51,7 +110,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Chunk Size Selector */}
-        <div className="space-y-2">
+        <div className="space-y-2" role="group" aria-label="Chunk size">
           <label className="text-xs font-bold text-[#8a8a8a] flex items-center gap-2">
             <Cpu className="w-4 h-4 text-[#ff2b2b]" />
             Chunk size
@@ -60,6 +119,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {chunkSizes.map((item) => (
               <button
                 key={item.value}
+                type="button"
+                aria-pressed={chunkSize === item.value}
                 onClick={() => onChunkSizeChange(item.value)}
                 className={`py-2 px-3 text-xs font-mono rounded-xs border text-left transition-all ${
                   chunkSize === item.value
@@ -79,21 +140,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <HardDrive className="w-4 h-4 text-emerald-400" />
             Save strategy
           </label>
-          <div
-            onClick={() => onPreferDirectSaveChange(!preferDirectSave)}
-            className="p-3 bg-[#050505] rounded-xs border border-[#1c1c22] flex items-center justify-between cursor-pointer hover:border-[#26262e] transition-colors"
-          >
-            <div>
-              <div className="text-xs font-bold text-[#f2f2f2]">Use native file picker</div>
-              <div className="text-[10px] text-[#8a8a8a]">Prompts save dialog for large files</div>
-            </div>
-            <input
-              type="checkbox"
-              checked={preferDirectSave}
-              onChange={() => {}}
-              className="accent-[#ff2b2b] w-4 h-4"
-            />
-          </div>
+          <ToggleRow
+            title="Use native file picker"
+            description="Prompts save dialog for large files"
+            checked={preferDirectSave}
+            onToggle={() => onPreferDirectSaveChange(!preferDirectSave)}
+          />
         </div>
 
         {/* Auto-Accept Files Toggle */}
@@ -102,40 +154,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <Zap className="w-4 h-4 text-[#ff2b2b]" />
             Auto-accept transfers
           </label>
-          <div
-            onClick={() => onAutoAcceptFilesChange(!autoAcceptFiles)}
-            className="p-3 bg-[#050505] rounded-xs border border-[#1c1c22] flex items-center justify-between cursor-pointer hover:border-[#26262e] transition-colors"
-          >
-            <div>
-              <div className="text-xs font-bold text-[#f2f2f2]">Auto-accept incoming files</div>
-              <div className="text-[10px] text-[#8a8a8a]">Automatically start downloading when peer sends files</div>
-            </div>
-            <input
-              type="checkbox"
-              checked={autoAcceptFiles}
-              onChange={() => {}}
-              className="accent-[#ff2b2b] w-4 h-4"
-            />
-          </div>
+          <ToggleRow
+            title="Auto-accept incoming files"
+            description="Automatically start downloading when peer sends files"
+            checked={autoAcceptFiles}
+            onToggle={() => onAutoAcceptFilesChange(!autoAcceptFiles)}
+          />
         </div>
 
         {/* Audio Toggle */}
         <div className="space-y-2 pt-3 border-t border-[#1c1c22]">
-          <div
-            onClick={onSoundToggle}
-            className="p-3 bg-[#050505] rounded-xs border border-[#1c1c22] flex items-center justify-between cursor-pointer hover:border-[#26262e] transition-colors"
-          >
-            <div className="flex items-center gap-2 text-xs font-bold text-[#f2f2f2]">
-              <Volume2 className="w-4 h-4 text-[#ff2b2b]" />
-              <span>Sound effects</span>
-            </div>
-            <input
-              type="checkbox"
-              checked={soundEnabled}
-              onChange={() => {}}
-              className="accent-[#ff2b2b] w-4 h-4"
-            />
-          </div>
+          <ToggleRow
+            title="Sound effects"
+            checked={soundEnabled}
+            onToggle={onSoundToggle}
+            icon={<Volume2 className="w-4 h-4 text-[#ff2b2b]" />}
+          />
         </div>
       </div>
     </div>

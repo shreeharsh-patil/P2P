@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="alternate icon" type="image/x-icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
     <title>SHREE — Private. Direct. Simple. P2P File & Text Transfer</title>
     <meta name="description" content="Send files and text directly between your devices without server storage." />
     <link rel="manifest" href="/manifest.json" />
@@ -14,7 +14,9 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      if ('serviceWorker' in navigator && window.location.protocol === 'https:' || window.location.hostname === 'localhost') {
+      var isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      var canRegister = 'serviceWorker' in navigator && (window.location.protocol === 'https:' || isLocalHost);
+      if (canRegister) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js').catch((err) => {
             console.log('ServiceWorker registration error:', err);

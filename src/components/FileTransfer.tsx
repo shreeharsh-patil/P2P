@@ -139,14 +139,20 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
     if (!canTransfer) return;
 
     if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
-      const scanned = await scanDataTransferItems(e.dataTransfer.items);
-      if (scanned.length > 0) {
-        if (onOfferScannedFiles) {
-          onOfferScannedFiles(scanned);
-        } else {
-          onOfferFiles(scanned.map((s) => s.file));
+      try {
+        const scanned = await scanDataTransferItems(e.dataTransfer.items);
+        if (scanned.length > 0) {
+          if (onOfferScannedFiles) {
+            onOfferScannedFiles(scanned);
+          } else {
+            onOfferFiles(scanned.map((s) => s.file));
+          }
+          return;
         }
-        return;
+      } catch (error) {
+        // One unreadable entry (permissions, removed folder) must not drop the
+        // whole batch; fall back to the plain file list below.
+        console.warn('[FileTransfer] Folder scan partially failed', error);
       }
     }
 
@@ -191,16 +197,23 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
     setIsZipping(true);
     try {
       const zipEntries: { name: string; data: Blob }[] = [];
+      let skipped = 0;
 
       for (const item of completedItems) {
-        if (item.downloadUrl) {
-          const resp = await fetch(item.downloadUrl);
-          const blob = await resp.blob();
-          const entryPath = item.relativePath || item.name;
-          zipEntries.push({ name: entryPath, data: blob });
-        } else if (item.file) {
-          const entryPath = item.relativePath || item.name;
-          zipEntries.push({ name: entryPath, data: item.file });
+        try {
+          if (item.downloadUrl) {
+            const resp = await fetch(item.downloadUrl);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const blob = await resp.blob();
+            const entryPath = item.relativePath || item.name;
+            zipEntries.push({ name: entryPath, data: blob });
+          } else if (item.file) {
+            const entryPath = item.relativePath || item.name;
+            zipEntries.push({ name: entryPath, data: item.file });
+          }
+        } catch (error) {
+          skipped++;
+          console.warn(`[Zip] Skipping ${item.name}`, error);
         }
       }
 
@@ -210,6 +223,9 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
         const zipName = `shree_bundle_${new Date().toISOString().slice(0, 10)}.zip`;
         handleDownloadClick(zipUrl, zipName);
         setTimeout(() => URL.revokeObjectURL(zipUrl), 30000);
+      }
+      if (skipped > 0) {
+        console.warn(`[Zip] ${skipped} file(s) could not be added to the archive`);
       }
     } catch (err) {
       console.error('Failed to create ZIP bundle', err);

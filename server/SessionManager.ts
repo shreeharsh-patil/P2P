@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 import { WebSocket } from 'ws';
 import { SignalMessage } from './signalingTypes.js';
 
@@ -22,10 +22,23 @@ export class SessionManager {
   private sessions: Map<string, Session> = new Map();
   private peers: Map<string, ConnectedPeer> = new Map();
 
+  public generatePeerId(): string {
+    let id: string;
+    do {
+      id = randomBytes(8).toString('hex');
+    } while (this.peers.has(id));
+    return id;
+  }
+
+  public hasPeer(peerId: string): boolean {
+    return this.peers.has(peerId);
+  }
+
   public generateSessionCode(): string {
     let code: string;
     do {
-      code = Math.floor(100000 + Math.random() * 900000).toString();
+      // CSPRNG: Math.random() makes active session codes predictable.
+      code = randomInt(100000, 1000000).toString();
     } while (this.sessions.has(code));
     return code;
   }
@@ -140,7 +153,16 @@ export class SessionManager {
     if (!session) return;
 
     if (session.hostId === peerId) {
-      if (session.clientId) this.peers.delete(session.clientId);
+      if (session.clientId) {
+        // The room is gone, so the remaining peer must not be left with a
+        // half-open socket that silently fails every send.
+        const client = this.peers.get(session.clientId);
+        if (client?.ws?.readyState === WebSocket.OPEN) {
+          client.ws.send(JSON.stringify({ type: 'PEER_LEFT', peerId: session.hostId }));
+          client.ws.close(4002, 'Host closed the session');
+        }
+        this.peers.delete(session.clientId);
+      }
       this.sessions.delete(peer.sessionId);
     } else if (session.clientId === peerId) {
       delete session.clientId;

@@ -1,4 +1,5 @@
-version: '3.8'
+# Shree P2P — app server + its own TURN relay.
+# Copy .env.example to .env and set TURN_CREDENTIAL before starting.
 
 services:
   shree-app:
@@ -7,35 +8,44 @@ services:
       dockerfile: Dockerfile
     container_name: shree_p2p_app
     ports:
-      - "4000:4000"
+      - "4050:4050"
     environment:
-      - PORT=4000
+      - PORT=4050
       - NODE_ENV=production
-      - TURN_SERVER=turn:coturn:3478
-      - TURN_USERNAME=shreeuser
-      - TURN_PASSWORD=shreesecret
+      - TURN_URL=turn:${TURN_PUBLIC_HOST:-localhost}:3478
+      - TURN_USERNAME=${TURN_USERNAME:-shreeuser}
+      - TURN_CREDENTIAL=${TURN_CREDENTIAL:?Set TURN_CREDENTIAL in .env}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
     depends_on:
-      - coturn
+      coturn:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4050/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   coturn:
-    image: coturn/coturn:latest
+    image: coturn/coturn:4.6.0
     container_name: shree_coturn
     restart: unless-stopped
-    ports:
-      - "3478:3478/tcp"
-      - "3478:3478/udp"
-      - "5349:5349/tcp"
-      - "5349:5349/udp"
-      - "49152-49200:49152-49200/udp"
     command:
       - -n
       - --log-file=stdout
       - --listening-port=3478
-      - --tls-listening-port=5349
       - --min-port=49152
       - --max-port=49200
-      - --realm=shree.local
-      - --user=shreeuser:shreesecret
+      - --realm=${TURN_REALM:-localhost}
+      - --user=${TURN_USERNAME:-shreeuser}:${TURN_CREDENTIAL:?Set TURN_CREDENTIAL in .env}
       - --lt-cred-mech
       - --fingerprint
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "49152-49200:49152-49200/udp"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 3478 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

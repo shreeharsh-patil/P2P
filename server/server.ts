@@ -1,16 +1,48 @@
 import express from 'express';
 import { createServer } from 'http';
+import path from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
 import cors from 'cors';
-import { SessionManager } from './SessionManager.js';
+import { SessionManager, SESSION_RECONNECT_GRACE_MS } from './SessionManager.js';
 import { SignalMessage } from './signalingTypes.js';
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+const silent = process.env.LOG_SILENT === '1';
+const log = (...args: unknown[]) => {
+  if (!silent) console.log(...args);
+};
+
+// Only allow browser origins that are explicitly configured. When nothing is
+// configured (local development) the wildcard behaviour is kept.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.length === 0) return callback(null, true);
+      callback(null, allowedOrigins.includes(origin));
+    }
+  })
+);
+app.use(express.json({ limit: '64kb' }));
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('X-Frame-Options', 'DENY');
+  next();
+});
 
 const server = createServer(app);
-const wss = new WebSocketServer({ server, path: '/ws' });
+const wss = new WebSocketServer({
+  server,
+  path: '/ws',
+  // A relayed 60 KiB chunk is ~80 KiB as base64 JSON; anything far above
+  // that is a client bug or an attempt to exhaust server memory.
+  maxPayload: 1024 * 1024
+});
 const sessionManager = new SessionManager();
 
 app.get('/api/health', (_req, res) => {
@@ -50,11 +82,68 @@ app.get('/api/ice-servers', (_req, res) => {
   res.json({ iceServers });
 });
 
-wss.on('connection', (ws: WebSocket) => {
-  let peerId: string = Math.random().toString(36).substring(2, 11);
+// Serve the built client when running the bundled production image.
+const distDir = path.resolve(process.cwd(), 'dist');
+app.use(
+  express.static(distDir, {
+    index: false,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('index.html') || filePath.endsWith('sw.js')) {
+        res.setHeader('Cache-Control', 'no-cache');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+      }
+    }
+  })
+);
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/') || req.path === '/ws') return next();
+  res.setHeader('Cache-Control', 'no-cache');
+  res.sendFile(path.join(distDir, 'index.html'), (error) => {
+    if (error) next();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Abuse protection: the signaling server is publicly reachable, so session
+// creation, joining and relay traffic must all be bounded.
+// ---------------------------------------------------------------------------
+
+const ACTION_WINDOW_MS = 60_000;
+const MAX_CREATES_PER_WINDOW = 5;
+const MAX_JOINS_PER_WINDOW = 10;
+const MAX_MESSAGES_PER_WINDOW = 1200;
+const MAX_CONNECTIONS_PER_IP = 20;
+
+function allowAction(bucket: number[], limit: number, windowMs = ACTION_WINDOW_MS): boolean {
+  const now = Date.now();
+  while (bucket.length > 0 && now - bucket[0] > windowMs) bucket.shift();
+  if (bucket.length >= limit) return false;
+  bucket.push(now);
+  return true;
+}
+
+const connectionsByIp = new Map<string, number>();
+
+wss.on('connection', (ws: WebSocket, req) => {
+  const ip = req.socket.remoteAddress || 'unknown';
+  const active = connectionsByIp.get(ip) ?? 0;
+  if (active >= MAX_CONNECTIONS_PER_IP) {
+    ws.close(4003, 'Too many connections');
+    return;
+  }
+  connectionsByIp.set(ip, active + 1);
+
+  const peerId: string = sessionManager.generatePeerId();
   let currentSessionId: string | null = null;
   let missedPongs = 0;
-  ws.on('pong', () => { missedPongs = 0; });
+  const createAttempts: number[] = [];
+  const joinAttempts: number[] = [];
+  const messageAttempts: number[] = [];
+
+  ws.on('pong', () => {
+    missedPongs = 0;
+  });
   const keepAlive = setInterval(() => {
     if (ws.readyState !== WebSocket.OPEN) return;
     if (++missedPongs > 2) {
@@ -64,15 +153,19 @@ wss.on('connection', (ws: WebSocket) => {
     ws.ping();
   }, 25_000);
 
-  console.log(`[WS] Peer connected: ${peerId}`);
+  log(`[WS] Peer connected: ${peerId}`);
 
   // Send a welcome message so the client knows its peer ID immediately
   ws.send(JSON.stringify({ type: 'WELCOME', peerId }));
 
-  ws.on('message', (data: string) => {
+  ws.on('message', (data: Buffer) => {
     try {
+      if (!allowAction(messageAttempts, MAX_MESSAGES_PER_WINDOW)) {
+        ws.close(4008, 'Rate limit exceeded');
+        return;
+      }
       const msg: SignalMessage = JSON.parse(data.toString());
-      console.log(`[WS] ${peerId} -> ${msg.type}${msg.sessionId ? ` session=${msg.sessionId}` : ''}${msg.targetPeerId ? ` target=${msg.targetPeerId}` : ''}`);
+      log(`[WS] ${peerId} -> ${msg.type}${msg.sessionId ? ` session=${msg.sessionId}` : ''}`);
 
       switch (msg.type) {
         case 'PING':
@@ -80,9 +173,13 @@ wss.on('connection', (ws: WebSocket) => {
           break;
 
         case 'CREATE_SESSION': {
+          if (!allowAction(createAttempts, MAX_CREATES_PER_WINDOW)) {
+            ws.send(JSON.stringify({ type: 'ERROR', error: 'Too many session attempts. Try again shortly.' }));
+            return;
+          }
           const sessionId = sessionManager.createSession(peerId, ws);
           currentSessionId = sessionId;
-          console.log(`[SESSION] Created: ${sessionId} by host ${peerId}`);
+          log(`[SESSION] Created: ${sessionId}`);
           ws.send(JSON.stringify({
             type: 'SESSION_CREATED',
             sessionId,
@@ -97,15 +194,19 @@ wss.on('connection', (ws: WebSocket) => {
             ws.send(JSON.stringify({ type: 'ERROR', error: 'Session ID is required' }));
             return;
           }
+          if (!allowAction(joinAttempts, MAX_JOINS_PER_WINDOW)) {
+            ws.send(JSON.stringify({ type: 'ERROR', error: 'Too many join attempts. Try again shortly.' }));
+            return;
+          }
           const result = sessionManager.joinSession(msg.sessionId, peerId, ws);
           if (!result.success) {
-            console.log(`[SESSION] Join FAILED: ${msg.sessionId} by ${peerId} — ${result.error}`);
+            log(`[SESSION] Join FAILED: ${msg.sessionId} — ${result.error}`);
             ws.send(JSON.stringify({ type: 'ERROR', error: result.error }));
             return;
           }
 
           currentSessionId = msg.sessionId;
-          console.log(`[SESSION] Joined: ${msg.sessionId} by client ${peerId}, host is ${result.hostId}`);
+          log(`[SESSION] Joined: ${msg.sessionId} by client ${peerId}`);
 
           // Tell the joiner: "you joined, here's the host's peerId so you know who to expect the offer from"
           ws.send(JSON.stringify({
@@ -120,7 +221,6 @@ wss.on('connection', (ws: WebSocket) => {
           if (result.hostId) {
             const hostPeer = sessionManager.getPeer(result.hostId);
             if (hostPeer?.ws?.readyState === WebSocket.OPEN) {
-              console.log(`[SESSION] Notifying host ${result.hostId} that client ${peerId} joined`);
               hostPeer.ws.send(JSON.stringify({
                 type: 'PEER_JOINED',
                 peerId
@@ -142,14 +242,13 @@ wss.on('connection', (ws: WebSocket) => {
             ws.send(JSON.stringify({ type: 'ERROR', error: result.error }));
             break;
           }
-          peerId = result.peerId!;
           currentSessionId = msg.sessionId;
           ws.send(JSON.stringify({
             type: 'SESSION_RESUMED',
             sessionId: currentSessionId,
-            peerId,
+            peerId: result.peerId,
             targetPeerId: result.targetPeerId,
-            resumeToken: sessionManager.getPeer(peerId)?.resumeToken,
+            resumeToken: sessionManager.getPeer(result.peerId!)?.resumeToken,
             isHost: result.isHost
           }));
           const session = sessionManager.getSessionInfo(currentSessionId);
@@ -179,7 +278,7 @@ wss.on('connection', (ws: WebSocket) => {
           if (msg.targetPeerId && msg.payload) {
             const relayed = sessionManager.handleSignal(peerId, msg.targetPeerId, msg.payload);
             if (!relayed) {
-              console.warn(`[SIGNAL] Failed to relay from ${peerId} to ${msg.targetPeerId} — target not found`);
+              log(`[SIGNAL] Failed to relay from ${peerId} — target not found or offline`);
             }
           }
           break;
@@ -192,7 +291,10 @@ wss.on('connection', (ws: WebSocket) => {
 
   ws.on('close', () => {
     clearInterval(keepAlive);
-    console.log(`[WS] Peer disconnected: ${peerId} (session: ${currentSessionId})`);
+    const remaining = (connectionsByIp.get(ip) ?? 1) - 1;
+    if (remaining <= 0) connectionsByIp.delete(ip);
+    else connectionsByIp.set(ip, remaining);
+    log(`[WS] Peer disconnected: ${peerId} (session: ${currentSessionId})`);
     sessionManager.suspendPeer(peerId, ws);
   });
 
@@ -202,9 +304,12 @@ wss.on('connection', (ws: WebSocket) => {
 });
 
 // Reclaim inactive peers and 6-digit codes after their reconnect grace period.
-setInterval(() => sessionManager.pruneStale(), 30_000);
+setInterval(() => sessionManager.pruneStale(), Math.min(30_000, SESSION_RECONNECT_GRACE_MS));
 
 const PORT = process.env.PORT || 4050;
 server.listen(PORT, () => {
   console.log(`Shree Signaling Server listening on port ${PORT}`);
+  if (allowedOrigins.length === 0) {
+    console.warn('[CORS] ALLOWED_ORIGINS is not set; accepting requests from any origin.');
+  }
 });

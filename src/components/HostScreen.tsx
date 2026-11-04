@@ -17,13 +17,13 @@ export const HostScreen: React.FC<HostScreenProps> = ({
   onBack
 }) => {
   const [copied, setCopied] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(300); // 5 minutes (300s) expiration
+  const [elapsed, setElapsed] = useState(0); // seconds since the session was created
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
-    setTimeLeft(300); // Reset timer when sessionId changes
+    setElapsed(0); // Reset the clock when the session code changes
     const timer = setInterval(() => {
-      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+      setElapsed((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(timer);
   }, [sessionId]);
@@ -45,7 +45,6 @@ export const HostScreen: React.FC<HostScreenProps> = ({
     }
   };
 
-  const isExpired = timeLeft === 0;
   const shareUrl = `${window.location.origin}/?join=${sessionId}`;
 
   // Format code with hyphen (e.g. QNDN-4VKX-PCGQ or 482-910)
@@ -98,20 +97,13 @@ export const HostScreen: React.FC<HostScreenProps> = ({
           <div className="absolute -bottom-2 -right-2 w-4 h-4 border-b-2 border-r-2 border-[#ff3030] pointer-events-none" />
 
           <div className="bg-white p-4 sm:p-5 rounded-xs inline-block shadow-xl border border-white/20 animate-glow-pulse">
-            {!isExpired ? (
-              <QRCodeSVG
-                value={shareUrl}
-                size={260}
-                level="H"
-                includeMargin={false}
-                className="w-[220px] h-[220px] sm:w-[280px] sm:h-[280px]"
-              />
-            ) : (
-              <div className="w-[220px] h-[220px] sm:w-[280px] sm:h-[280px] bg-[#121216] flex flex-col items-center justify-center text-center p-4 text-[#a0a0a0] font-mono text-xs">
-                <span className="text-[#ff3030] font-bold mb-2">SESSION EXPIRED</span>
-                <span>Generate a new session to continue</span>
-              </div>
-            )}
+            <QRCodeSVG
+              value={shareUrl}
+              size={260}
+              level="H"
+              includeMargin={false}
+              className="w-[220px] h-[220px] sm:w-[280px] sm:h-[280px]"
+            />
           </div>
         </div>
 
@@ -132,8 +124,7 @@ export const HostScreen: React.FC<HostScreenProps> = ({
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 pt-1">
             <button
               onClick={handleCopyCode}
-              disabled={isExpired}
-              className="px-4 py-2 text-xs font-mono font-bold bg-[#080808] hover:bg-[#141418] disabled:opacity-30 border border-[rgba(255,255,255,0.12)] hover:border-[#ff3030] text-[#f2f2f2] rounded-xs flex items-center gap-2 transition-all active:scale-95"
+              className="px-4 py-2 text-xs font-mono font-bold bg-[#080808] hover:bg-[#141418] border border-[rgba(255,255,255,0.12)] hover:border-[#ff3030] text-[#f2f2f2] rounded-xs flex items-center gap-2 transition-all active:scale-95"
             >
               {copied ? (
                 <>
@@ -158,20 +149,10 @@ export const HostScreen: React.FC<HostScreenProps> = ({
           </div>
         </div>
 
-        {/* EXPIRATION TIMER */}
+        {/* SESSION AGE CLOCK */}
         <div className="text-xs font-mono tracking-wider">
-          {!isExpired ? (
-            <span className="text-[#a0a0a0]">
-              expires in <span className="text-[#ff3030] font-bold">{formatTimer(timeLeft)}</span>
-            </span>
-          ) : (
-            <button
-              onClick={onRegenerateSession}
-              className="px-4 py-2 bg-[#ff3030] hover:bg-[#e31e24] text-white font-mono font-bold text-xs rounded-xs tracking-wider uppercase animate-glow-pulse active:scale-95"
-            >
-              CREATE NEW SESSION
-            </button>
-          )}
+          <span className="text-[#666666]">waiting for </span>
+          <span className="text-[#ff3030] font-bold">{formatTimer(elapsed)}</span>
         </div>
 
         {/* ADVANCED COLLAPSIBLE ACCORDION */}
@@ -219,7 +200,7 @@ export const HostScreen: React.FC<HostScreenProps> = ({
       <div className="p-4 bg-[#080808] border border-[rgba(255,255,255,0.06)] rounded-xs text-[11px] font-mono text-[#a0a0a0] text-center space-y-1">
         <span className="text-[#ff3030] font-bold tracking-wider uppercase">ONE-TIME CODE</span>
         <p className="text-[#666666] font-sans">
-          This code is unique to this session. It becomes invalid when a peer connects or when the timer expires.
+          This code is unique to this session. It becomes invalid once a peer joins or when you regenerate it.
         </p>
       </div>
     </div>

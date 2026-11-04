@@ -1,5 +1,11 @@
 import { IDBStorage } from '../utils/idbStorage.js';
 
+/** OPFS entry names cannot contain path separators and should stay short. */
+function sanitizeFileName(name: string): string {
+  const base = name.split(/[\\/]/).pop() || 'download';
+  return base.replace(/[<>:"|?*\u0000-\u001f]/g, '_').slice(0, 180) || 'download';
+}
+
 export interface StorageWriter {
   writeChunk(chunkIndex: number, offset: bigint, data: Uint8Array): Promise<void>;
   close(name: string, type: string): Promise<Blob | string | null>;
@@ -150,7 +156,7 @@ export class StorageAdapter {
 
     // 2. OPFS if available
     try {
-      const opfsWriter = new OPFSWriter(`${transferId}_${fileName}`);
+      const opfsWriter = new OPFSWriter(`${transferId}_${sanitizeFileName(fileName)}`);
       await opfsWriter.init();
       return { writer: opfsWriter, strategy: 'opfs' };
     } catch (e) {

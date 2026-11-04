@@ -9,6 +9,54 @@ export interface WebRTCEvents {
   onFileChunk?: (buffer: ArrayBuffer) => void;
   onTextMessage?: (text: string, senderId: string, timestamp: number) => void;
   onChannelReady?: () => void;
+  onRelayModeChange?: (active: boolean) => void;
+}
+
+// Public STUN/TURN defaults, overridden by /api/ice-servers when the
+// signaling server is reachable (that endpoint also carries private TURN
+// credentials so they never need to be committed to the client bundle).
+const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun.cloudflare.com:3478' },
+  {
+    urls: [
+      'turn:openrelay.metered.ca:80',
+      'turn:openrelay.metered.ca:443',
+      'turn:openrelay.metered.ca:443?transport=tcp'
+    ],
+    username: 'openrelayproject',
+    credential: 'openrelayproject'
+  }
+];
+
+let cachedIceServers: RTCIceServer[] = DEFAULT_ICE_SERVERS;
+
+function fromEnvIceServers(): RTCIceServer[] {
+  const raw = import.meta.env.VITE_ICE_SERVERS as string | undefined;
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((url) => url.trim())
+    .filter(Boolean)
+    .map((urls) => ({ urls }));
+}
+
+async function loadIceServers(wsUrl: string): Promise<void> {
+  try {
+    const httpUrl = new URL(wsUrl.replace(/^ws/, 'http'));
+    httpUrl.pathname = '/api/ice-servers';
+    httpUrl.search = '';
+    const response = await fetch(httpUrl.toString(), { headers: { Accept: 'application/json' } });
+    if (!response.ok) return;
+    const data = await response.json();
+    if (Array.isArray(data?.iceServers) && data.iceServers.length > 0) {
+      cachedIceServers = data.iceServers;
+    }
+  } catch {
+    // Keep the built-in defaults when the endpoint is unreachable.
+  }
 }
 
 export class WebRTCManager {
@@ -41,6 +89,8 @@ export class WebRTCManager {
     this.signaling = signaling;
     this.events = events;
     this.setupSignalingListeners();
+    cachedIceServers = [...DEFAULT_ICE_SERVERS, ...fromEnvIceServers()];
+    void loadIceServers(signaling.getServerUrl());
   }
 
   public setEvents(events: WebRTCEvents) {
@@ -96,13 +146,14 @@ export class WebRTCManager {
     console.log(`[WebRTC] Fallback to WebSocket Relay Mode (${reason})`);
     this.isWebSocketRelayMode = true;
     this.updateState('connected');
+    this.events.onRelayModeChange?.(true);
     this.events.onChannelReady?.();
   }
 
   private setupSignalingListeners() {
     this.signaling.on('SIGNAL', async (msg) => {
       if (!msg.payload) return;
-      const { type, sdp, candidate, isRelayData, isRelayProbe, isRelayAck, controlPayload, fileBufferArray } = msg.payload;
+      const { type, sdp, candidate, isRelayData, isRelayProbe, isRelayAck, controlPayload, fileBufferArray, fileChunkBase64 } = msg.payload;
       if (msg.peerId && this.targetPeerId && msg.peerId !== this.targetPeerId) return;
 
       if (msg.peerId && !this.targetPeerId) {
@@ -139,14 +190,17 @@ export class WebRTCManager {
         if (fileBufferArray && this.events.onFileChunk) {
           const uint8 = new Uint8Array(fileBufferArray);
           this.events.onFileChunk(uint8.buffer);
+        } else if (fileChunkBase64 && this.events.onFileChunk) {
+          this.events.onFileChunk(this.base64ToBuffer(fileChunkBase64));
         }
         return;
       }
 
+      if (!msg.peerId) return;
       try {
         if (type === 'offer' && sdp) {
           this.offerReceived = true;
-          await this.handleOffer(sdp, msg.peerId!);
+          await this.handleOffer(sdp, msg.peerId);
         } else if (type === 'answer' && sdp) {
           this.answerReceived = true;
           await this.handleAnswer(sdp);
@@ -186,23 +240,10 @@ export class WebRTCManager {
   private createPeerConnection() {
     if (this.peerConnection) return;
 
-    // High-speed STUN + Metered OpenRelay TURN
+    // STUN/TURN list comes from the signaling server when available so that
+    // private TURN credentials are not baked into the public bundle.
     const config: RTCConfiguration = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun.cloudflare.com:3478' },
-        {
-          urls: [
-            'turn:openrelay.metered.ca:80',
-            'turn:openrelay.metered.ca:443',
-            'turn:openrelay.metered.ca:443?transport=tcp'
-          ],
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        }
-      ],
+      iceServers: cachedIceServers.length > 0 ? cachedIceServers : DEFAULT_ICE_SERVERS,
       iceCandidatePoolSize: 10
     };
 
@@ -461,7 +502,8 @@ export class WebRTCManager {
     if (this.isWebSocketRelayMode && this.targetPeerId) {
       return this.signaling.sendSignal(this.targetPeerId, {
         isRelayData: true,
-        fileBufferArray: Array.from(new Uint8Array(buffer))
+        // base64 is ~33% overhead instead of the 300%+ of a JSON number array.
+        fileChunkBase64: this.bufferToBase64(buffer)
       });
     }
     if (this.fileChannel?.readyState === 'open') {
@@ -473,6 +515,25 @@ export class WebRTCManager {
       }
     }
     return false;
+  }
+
+  private bufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    const blockSize = 0x8000;
+    let binary = '';
+    for (let offset = 0; offset < bytes.length; offset += blockSize) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + blockSize));
+    }
+    return btoa(binary);
+  }
+
+  private base64ToBuffer(encoded: string): ArrayBuffer {
+    const binary = atob(encoded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes.buffer;
   }
 
   public sendTextMessage(text: string): boolean {

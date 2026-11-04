@@ -118,7 +118,17 @@ export class CryptoEngine {
    */
   public static async encryptPayload(payload: Uint8Array | ArrayBuffer, key: CryptoKey): Promise<Uint8Array> {
     const iv = crypto.getRandomValues(new Uint8Array(12));
-    const dataBuffer: BufferSource = payload instanceof Uint8Array ? (payload.buffer as ArrayBuffer) : payload;
+    // Copy the exact view: passing `payload.buffer` would encrypt the whole
+    // backing store, including bytes outside a subarray view.
+    let dataBuffer: ArrayBuffer;
+    if (payload instanceof Uint8Array) {
+      dataBuffer = payload.buffer.slice(
+        payload.byteOffset,
+        payload.byteOffset + payload.byteLength
+      ) as ArrayBuffer;
+    } else {
+      dataBuffer = payload;
+    }
     const encryptedBuffer = await crypto.subtle.encrypt(
       {
         name: 'AES-GCM',

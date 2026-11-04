@@ -34,7 +34,7 @@ interface ConnectedScreenProps {
 export const ConnectedScreen: React.FC<ConnectedScreenProps> = ({
   queue,
   isConnected,
-  canTransfer = true,
+  canTransfer = isConnected,
   autoAcceptFiles = false,
   onToggleAutoAccept,
   webrtcState,
@@ -86,7 +86,7 @@ export const ConnectedScreen: React.FC<ConnectedScreenProps> = ({
         <div className="lg:col-span-2 space-y-6">
           <FileTransfer
             queue={queue}
-            canTransfer={canTransfer ?? isConnected}
+            canTransfer={canTransfer}
             autoAcceptFiles={autoAcceptFiles}
             onToggleAutoAccept={onToggleAutoAccept}
             onOfferFiles={onOfferFiles}

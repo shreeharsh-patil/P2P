@@ -174,7 +174,7 @@ export const AnimatedBackground: React.FC = () => {
       />
 
       {/* Canvas Particle Network */}
-      <canvas ref={canvasRef} className={`absolute inset-0 w-full h-full ${isMobile ? 'opacity-35' : 'opacity-55'}`} />
+      <canvas ref={canvasRef} aria-hidden="true" className={`absolute inset-0 w-full h-full ${isMobile ? 'opacity-35' : 'opacity-55'}`} />
 
       {/* Radar Sweep Line Overlay */}
       {!reducedMotion && <div className="absolute inset-x-0 h-32 radar-sweep" />}

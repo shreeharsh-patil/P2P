@@ -6,6 +6,7 @@ import { BackpressureController } from './BackpressureController';
 import { StorageAdapter, StorageWriter } from './StorageAdapter';
 import { IntegrityManager } from './IntegrityManager';
 import { ResumeManager } from './ResumeManager';
+import { IDBStorage } from '../utils/idbStorage';
 
 export interface TransferManagerCallbacks {
   onQueueUpdated?: (queue: TransferItem[]) => void;
@@ -13,6 +14,21 @@ export interface TransferManagerCallbacks {
   onTransferCompleted?: (item: TransferItem, downloadUrl?: string | null) => void;
   onError?: (transferId: string, error: string) => void;
   onOfferReceived?: (item: TransferItem) => void;
+}
+
+// Hard bounds for peer-supplied offers. Anything outside these is rejected
+// before it can drive allocations or IndexedDB writes.
+const MAX_TOTAL_CHUNKS = 5_000_000;
+const MAX_FILE_SIZE = 2 * 1024 ** 4; // 2 TiB
+const MIN_CHUNK_SIZE = 4 * 1024;
+const MAX_CHUNK_SIZE = 1024 * 1024;
+const SHA256_HEX = /^[a-f0-9]{64}$/i;
+
+/** Strip directory components so a peer can never choose a path. */
+function sanitizeFileName(name: string, fallback: string): string {
+  const base = name.split(/[\\/]/).pop()?.replace(/\0/g, '').trim();
+  if (!base || base === '.' || base === '..') return fallback;
+  return base.slice(0, 255);
 }
 
 export class TransferManager {
@@ -55,6 +71,14 @@ export class TransferManager {
 
   private lastProgressEmit: Map<string, number> = new Map();
 
+  /**
+   * Progress must never move backwards when a transfer resumes mid-file.
+   */
+  private percentFor(size: number, bytes: number, previous: number): number {
+    if (size <= 0) return 100;
+    return Math.max(previous, Math.min(100, Math.round((bytes / size) * 100)));
+  }
+
   public getQueue(): TransferItem[] {
     return Array.from(this.queue.values());
   }
@@ -81,6 +105,8 @@ export class TransferManager {
   public resetSession(): void {
     // A manual session leave must not permanently stop the speed timer or event listeners.
     for (const id of Array.from(this.queue.keys())) {
+      const item = this.queue.get(id);
+      if (item?.downloadUrl) URL.revokeObjectURL(item.downloadUrl);
       void this.storageWriters.get(id)?.abort();
       this.cleanup(id);
     }
@@ -208,9 +234,26 @@ export class TransferManager {
   }
 
   public cancelAll(): void {
+    // Cancel only work that is actually in flight; completed items keep their
+    // verified result until they are explicitly cleared below.
     for (const id of Array.from(this.queue.keys())) {
-      this.cancelTransfer(id);
+      const item = this.queue.get(id);
+      if (item && (item.status === 'offering' || item.status === 'transferring' ||
+                   item.status === 'paused' || item.status === 'queued')) {
+        this.cancelTransfer(id);
+      }
     }
+
+    // Clear finished rows and release their blob URLs so a long session does
+    // not retain every received file.
+    for (const [id, item] of Array.from(this.queue.entries())) {
+      if (item.status === 'completed' || item.status === 'cancelled' || item.status === 'error') {
+        if (item.downloadUrl) URL.revokeObjectURL(item.downloadUrl);
+        this.queue.delete(id);
+        this.cleanup(id);
+      }
+    }
+    this.callbacks.onQueueUpdated?.(this.getQueue());
   }
 
   /**
@@ -219,6 +262,9 @@ export class TransferManager {
   public async acceptOffer(transferId: string, preferDirectSave: boolean = false): Promise<void> {
     const item = this.queue.get(transferId);
     if (!item) return;
+    // Double-click / repeated auto-accept protection: only an untouched offer
+    // may start a download.
+    if (item.status !== 'offering') return;
     let writer: StorageWriter | undefined;
 
     try {
@@ -306,6 +352,33 @@ export class TransferManager {
   }
 
   /**
+   * Validates a peer-supplied offer. Returns an error message, or null when
+   * the metadata is internally consistent and within safe bounds.
+   */
+  private validateOfferMeta(meta: TransferMeta): string | null {
+    if (!Number.isInteger(meta.size) || meta.size < 0 || meta.size > MAX_FILE_SIZE) {
+      return 'Invalid file size';
+    }
+    if (!Number.isInteger(meta.chunkSize) || meta.chunkSize < MIN_CHUNK_SIZE || meta.chunkSize > MAX_CHUNK_SIZE) {
+      return 'Invalid chunk size';
+    }
+    if (!Number.isInteger(meta.totalChunks) || meta.totalChunks < 1 || meta.totalChunks > MAX_TOTAL_CHUNKS) {
+      return 'Invalid chunk count';
+    }
+    const expectedChunks = Math.max(1, Math.ceil(meta.size / meta.chunkSize));
+    if (meta.totalChunks !== expectedChunks) {
+      return 'Chunk count does not match file size';
+    }
+    if (!meta.sha256 || !SHA256_HEX.test(meta.sha256)) {
+      return 'Invalid file checksum';
+    }
+    if (typeof meta.name !== 'string' || meta.name.length === 0) {
+      return 'Invalid file name';
+    }
+    return null;
+  }
+
+  /**
    * Incoming Control Message Dispatcher
    */
   private async handleControlMessage(msg: ControlMessage) {
@@ -314,8 +387,18 @@ export class TransferManager {
     switch (msg.type) {
       case 'FILE_OFFER': {
         if (!msg.meta) return;
+        if (this.queue.has(msg.transferId)) return;
+        const validationError = this.validateOfferMeta(msg.meta);
+        if (validationError) {
+          console.warn(`[Transfer] Rejected offer ${msg.transferId}: ${validationError}`);
+          this.rtc.sendControlMessage({ type: 'FILE_REJECT', transferId: msg.transferId });
+          return;
+        }
+        const safeName = sanitizeFileName(msg.meta.name, 'download');
         const item: TransferItem = {
           ...msg.meta,
+          name: safeName,
+          relativePath: sanitizeFileName(msg.meta.relativePath || safeName, safeName),
           direction: 'download',
           status: 'offering',
           progress: {
@@ -436,12 +519,12 @@ export class TransferManager {
         }
 
         const bytesTransferred = Number(chunk.offset) + chunk.length;
-        const percent = Math.min(100, Math.round((bytesTransferred / item.size) * 100));
+        const percent = this.percentFor(item.size, bytesTransferred, currentItem.progress.percent);
 
         this.updateQueueItem(transferId, {
           progress: {
             ...currentItem.progress,
-            bytesTransferred,
+            bytesTransferred: Math.max(currentItem.progress.bytesTransferred, bytesTransferred),
             chunksTransferred: index + 1,
             percent
           }
@@ -468,17 +551,32 @@ export class TransferManager {
 
       if (!item || !writer || !resumeMgr || item.status !== 'transferring') return;
 
+      // Reject packets that do not line up with the accepted offer.
+      if (chunkIndex >= item.totalChunks) {
+        throw new Error(`Chunk index ${chunkIndex} exceeds the offered chunk count`);
+      }
+      const expectedOffset = BigInt(chunkIndex) * BigInt(item.chunkSize);
+      if (offset !== expectedOffset) {
+        throw new Error(`Chunk ${chunkIndex} has an unexpected offset`);
+      }
+      if (payload.byteLength > item.chunkSize) {
+        throw new Error(`Chunk ${chunkIndex} exceeds the agreed chunk size`);
+      }
+      if (Number(offset) + payload.byteLength > item.size) {
+        throw new Error(`Chunk ${chunkIndex} exceeds the offered file size`);
+      }
+
       // Progressive Write to Disk/OPFS/IDB
       await writer.writeChunk(chunkIndex, offset, payload);
       await resumeMgr.markChunkReceived(chunkIndex);
 
       const bytesTransferred = Number(offset) + payload.byteLength;
-      const percent = Math.min(100, Math.round((bytesTransferred / item.size) * 100));
+      const percent = this.percentFor(item.size, bytesTransferred, item.progress.percent);
 
       this.updateQueueItem(transferId, {
         progress: {
           ...item.progress,
-          bytesTransferred,
+          bytesTransferred: Math.max(item.progress.bytesTransferred, bytesTransferred),
           chunksTransferred: resumeMgr.getReceivedCount(),
           percent
         }
@@ -579,5 +677,9 @@ export class TransferManager {
     this.resumeManagers.delete(transferId);
     this.backpressureControllers.delete(transferId);
     this.lastBytesTransferred.delete(transferId);
+    this.lastProgressEmit.delete(transferId);
+    // Free any resumable state that is no longer needed. Idempotent: the
+    // success path may already have cleared it.
+    void IDBStorage.clearTransferChunks(transferId);
   }
 }

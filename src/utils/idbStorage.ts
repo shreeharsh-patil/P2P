@@ -109,6 +109,9 @@ export class IDBStorage {
     return new Promise((resolve, reject) => {
       const tx = db.transaction([STORE_CHUNKS, STORE_TRANSFERS], 'readwrite');
       const chunkStore = tx.objectStore(STORE_CHUNKS);
+      // Transfer state rows carry the received-chunk index list, which can be
+      // megabytes for very large files. Always drop them with the chunks.
+      tx.objectStore(STORE_TRANSFERS).delete(transferId);
       const index = chunkStore.openCursor();
       index.onsuccess = (e) => {
         const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;

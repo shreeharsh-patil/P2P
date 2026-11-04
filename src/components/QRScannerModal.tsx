@@ -17,6 +17,10 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hasScannedRef = useRef<boolean>(false);
   const isStoppingRef = useRef<boolean>(false);
+  const isOpenRef = useRef<boolean>(isOpen);
+  // Incremented whenever scanning is cancelled or restarted so an in-flight
+  // start() can detect that it lost the race and release the camera.
+  const scanGenerationRef = useRef<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [isStarting, setIsStarting] = useState(false);
@@ -37,6 +41,8 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   };
 
   const stopScanner = async () => {
+    // Cancels any start() that is still negotiating the camera.
+    scanGenerationRef.current++;
     if (isStoppingRef.current) return;
     isStoppingRef.current = true;
     stopCameraTracks();
@@ -60,6 +66,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
       setIsStarting(true);
 
       await stopScanner();
+      const generation = ++scanGenerationRef.current;
 
       const qrScanner = new Html5Qrcode('qr-reader-container');
       qrCodeRef.current = qrScanner;
@@ -95,6 +102,17 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           // Ignored frame search noise
         }
       );
+
+      // The modal may have closed (or restarted) while the camera was
+      // starting; in that case release it immediately instead of leaving the
+      // LED on with no handle to stop it.
+      if (generation !== scanGenerationRef.current || !isOpenRef.current) {
+        try {
+          await qrScanner.stop();
+          qrScanner.clear();
+        } catch (e) {}
+        return;
+      }
       setIsStarting(false);
     } catch (err: any) {
       console.warn('Failed to start camera scanner', err);
@@ -115,6 +133,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   };
 
   useEffect(() => {
+    isOpenRef.current = isOpen;
     let timer: any = null;
     if (isOpen) {
       hasScannedRef.current = false;
@@ -125,9 +144,22 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
     return () => {
       if (timer) clearTimeout(timer);
-      stopScanner();
+      isOpenRef.current = false;
+      void stopScanner();
     };
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        void stopScanner();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   const handleFlipCamera = () => {
     const nextMode = facingMode === 'environment' ? 'user' : 'environment';
@@ -160,12 +192,18 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-      <div className="tech-panel p-6 max-w-sm w-full relative bg-[#09090b] border border-[#ff2b2b]/50 shadow-[0_0_30px_rgba(255,43,43,0.15)] font-mono space-y-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="QR scanner"
+        className="tech-panel p-6 max-w-sm w-full relative bg-[#09090b] border border-[#ff2b2b]/50 shadow-[0_0_30px_rgba(255,43,43,0.15)] font-mono space-y-4"
+      >
         <button
           onClick={() => {
             stopScanner();
             onClose();
           }}
+          aria-label="Close QR scanner"
           className="absolute top-4 right-4 p-1 text-[#8a8a8a] hover:text-white rounded-xs transition-colors z-10"
         >
           <X className="w-5 h-5" />

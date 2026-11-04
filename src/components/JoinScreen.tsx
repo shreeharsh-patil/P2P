@@ -25,7 +25,7 @@ export const JoinScreen: React.FC<JoinScreenProps> = ({
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
-        const match = text.match(/\b\d{6}\b/) || text.match(/join=([A-[#a-z0-9-]+)/i);
+        const match = text.match(/\b\d{6}\b/) || text.match(/join=([A-Za-z0-9-]+)/i);
         if (match) {
           setInputCode(match[1] || match[0]);
         } else {

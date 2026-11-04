@@ -15,11 +15,16 @@ export async function scanDataTransferItems(items: DataTransferItemList): Promis
     if (!entry) return;
 
     if (entry.isFile) {
-      const file: File = await new Promise((resolve, reject) => {
-        entry.file(resolve, reject);
-      });
-      const relativePath = path ? `${path}/${file.name}` : file.name;
-      files.push({ file, relativePath });
+      try {
+        const file: File = await new Promise((resolve, reject) => {
+          entry.file(resolve, reject);
+        });
+        const relativePath = path ? `${path}/${file.name}` : file.name;
+        files.push({ file, relativePath });
+      } catch (error) {
+        // Skip entries that cannot be read rather than failing the batch.
+        console.warn(`[directoryReader] Skipping unreadable file in ${path || '/'}`, error);
+      }
     } else if (entry.isDirectory) {
       const dirReader = entry.createReader();
       const newPath = path ? `${path}/${entry.name}` : entry.name;
@@ -59,7 +64,11 @@ export async function scanDataTransferItems(items: DataTransferItemList): Promis
     }
   }
 
-  await Promise.all(entryPromises);
+  const results = await Promise.allSettled(entryPromises);
+  const failed = results.filter((result) => result.status === 'rejected').length;
+  if (failed > 0) {
+    console.warn(`[directoryReader] ${failed} item(s) could not be read and were skipped`);
+  }
   return files;
 }
 
