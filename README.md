@@ -169,6 +169,32 @@ docker-compose up --build -d
 Application accessible live at: `http://localhost:4050` — the production image builds the static client and the signaling server into one Node process that serves both (`/ws`, `/api/*`, and the app shell).
 
 > **Security note:** copy `.env.example` to `.env` and set a strong `TURN_CREDENTIAL` before running compose. The relay password is never committed to git.
+
+---
+
+### 🌐 One deploy on Render (recommended for hosted use)
+
+The app needs a persistent Node/WebSocket process — Vercel/Netlify static hosting cannot run the signaling server by itself. The included `render.yaml` deploys the whole app as one Node web service:
+
+1. Push this repo to GitHub.
+2. On Render: **New + → Blueprint** and pick this repo. Render builds the client and starts the Node server, which serves the app and `/ws` on the same origin.
+3. Set `ALLOWED_ORIGINS` to your public origin(s).
+
+### 🌐 Vercel static client + separate signaling
+
+If you keep the static client on Vercel, you must point it at your own signaling backend, otherwise `wss://<your-vercel-app>/ws` does not exist and the client cannot connect:
+
+1. Deploy this same repo to Render (as above) or any host that runs Node + WebSockets. Note the assigned URL, e.g. `https://shree-p2p.onrender.com`.
+2. On Vercel, set the environment variable:
+
+   ```bash
+   VITE_SIGNALING_URL=wss://shree-p2p.onrender.com/ws
+   ```
+
+3. Redeploy the client on Vercel (the build embeds `VITE_SIGNALING_URL`).
+4. On the signaling host set `ALLOWED_ORIGINS=https://useshree.vercel.app` so other websites cannot piggyback on your socket.
+
+With no `VITE_SIGNALING_URL` configured, the client now connects to same-origin `/ws` — which only works when the Node server is serving the app (Docker/Render/local).
 ---
 
 ## 🧪 Testing & Engine Verification

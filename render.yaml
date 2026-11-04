@@ -1,0 +1,27 @@
+# Render.com blueprint: one Node service serving the client, /api/* and /ws.
+# Dashboard: New + → Blueprint → point at this repo. Or set up manually:
+#   Build Command:  npm ci && npm run build
+#   Start Command:  npx tsx server/server.ts
+# Render injects PORT automatically and terminates TLS at its edge.
+services:
+  - type: web
+    name: shree-p2p
+    runtime: node
+    plan: free # Render free tier sleeps after inactivity; upgrade to keep WS always-on
+    buildCommand: npm ci && npm run build
+    startCommand: npx tsx server/server.ts
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Lock the socket down to your deployed client origin(s), comma-separated:
+      - key: ALLOWED_ORIGINS
+        value: https://useshree.vercel.app
+      # Optional private TURN relay. Public STUN/OpenRelay is used when these
+      # are unset, so TURN is optional.
+      # - key: TURN_URL
+      #   value: turn:your-domain:3478
+      # - key: TURN_USERNAME
+      #   sync: false
+      # - key: TURN_CREDENTIAL
+      #   sync: false
