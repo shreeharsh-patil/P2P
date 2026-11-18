@@ -39,14 +39,14 @@ export const SessionPanel: React.FC<SessionPanelProps> = ({ sessionId, webrtcSta
   const isConnecting = webrtcState === 'connecting';
 
   return (
-    <div className="tech-panel p-8 sm:p-10 bg-[#09090b] border border-[#1c1c22] text-center relative overflow-hidden">
+    <div className="tech-panel p-8 sm:p-10 bg-[#09140e] border border-[#1c3829] text-center relative overflow-hidden">
       <div className="font-mono text-xs text-[#8a8a8a] tracking-[0.3em] uppercase">
         Your Session
       </div>
 
       {/* Session Code */}
-      <div className="mt-6 inline-flex items-center gap-4 bg-[#050505] px-8 sm:px-10 py-5 rounded-sm border border-[#ff2b2b]/40 shadow-[0_0_30px_rgba(255,43,43,0.1)]">
-        <span className="font-mono text-4xl sm:text-5xl font-black tracking-[0.15em] text-[#ff2b2b]">
+      <div className="mt-6 inline-flex items-center gap-4 bg-[#050a07] px-8 sm:px-10 py-5 rounded-sm border border-[#00e676]/40 shadow-[0_0_30px_rgba(0,230,118,0.1)]">
+        <span className="font-mono text-4xl sm:text-5xl font-black tracking-[0.15em] text-[#00e676]">
           {sessionId}
         </span>
       </div>
@@ -55,16 +55,16 @@ export const SessionPanel: React.FC<SessionPanelProps> = ({ sessionId, webrtcSta
       <div className="mt-6 flex items-center justify-center gap-3">
         <button
           onClick={handleCopyCode}
-          className="px-4 py-2 text-xs font-mono font-semibold bg-[#141418] hover:bg-[#1a1a20] text-[#f2f2f2] border border-[#26262e] rounded-sm flex items-center gap-2 transition-colors"
+          className="px-4 py-2 text-xs font-mono font-semibold bg-[#11241a] hover:bg-[#173024] text-[#f2f2f2] border border-[#2a4635] rounded-sm flex items-center gap-2 transition-colors"
         >
           {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
           {copied ? 'Copied' : 'Copy Code'}
         </button>
         <button
           onClick={onOpenQRModal}
-          className="px-4 py-2 text-xs font-mono font-semibold bg-[#141418] hover:bg-[#1a1a20] text-[#f2f2f2] border border-[#26262e] rounded-sm flex items-center gap-2 transition-colors"
+          className="px-4 py-2 text-xs font-mono font-semibold bg-[#11241a] hover:bg-[#173024] text-[#f2f2f2] border border-[#2a4635] rounded-sm flex items-center gap-2 transition-colors"
         >
-          <QrCode className="w-4 h-4 text-[#ff2b2b]" />
+          <QrCode className="w-4 h-4 text-[#00e676]" />
           Show QR
         </button>
       </div>
@@ -79,7 +79,7 @@ export const SessionPanel: React.FC<SessionPanelProps> = ({ sessionId, webrtcSta
 
       {/* Expiry */}
       <div className="mt-6 text-[11px] font-mono text-[#4a4a4a]">
-        Expires in <span className="text-[#ff2b2b] font-bold">{formatTimer(timeLeft)}</span>
+        Expires in <span className="text-[#00e676] font-bold">{formatTimer(timeLeft)}</span>
       </div>
     </div>
   );
