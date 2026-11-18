@@ -77,7 +77,7 @@ export const TextTransfer: React.FC<TextTransferProps> = ({
     const url = URL.createObjectURL(new Blob([transcript], { type: 'text/plain;charset=utf-8' }));
     const link = document.createElement('a');
     link.href = url;
-    link.download = `shree-chat-${new Date().toISOString().slice(0, 10)}.txt`;
+    link.download = `dr-doom-chat-${new Date().toISOString().slice(0, 10)}.txt`;
     document.body.appendChild(link);
     link.click();
     link.remove();

@@ -1,13 +1,14 @@
 /**
- * Shree P2P Service Worker
+ * DR DOOM P2P Service Worker
  * Network-first for navigation/HTML to prevent stale asset hashes.
  * Cache-first for static icons/manifests with offline fallback.
  */
 
-const CACHE_NAME = 'shree-p2p-cache-v3-green';
+const CACHE_NAME = 'dr-doom-p2p-cache-v4';
 const STATIC_ASSETS = [
   '/manifest.json',
-  '/favicon.svg'
+  '/favicon.svg',
+  '/dr-doom-emblem.webp'
 ];
 
 self.addEventListener('install', (event) => {

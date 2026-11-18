@@ -10,16 +10,16 @@ export const Hero: React.FC = () => {
         <span className="h-px w-8 sm:w-14 doomsday-hud-line" />
       </div>
       <div className="flex justify-center">
-        <div className="doomsday-emblem relative w-20 h-20 sm:w-24 sm:h-24 p-3 border border-[#236544] rounded-md animate-glow-pulse">
+        <div className="doomsday-emblem relative w-28 h-28 sm:w-32 sm:h-32 p-1.5 border border-[#236544] rounded-md animate-glow-pulse">
           <span aria-hidden="true" className="absolute left-1 top-1 h-2 w-2 border-l border-t border-[#00e676]" />
           <span aria-hidden="true" className="absolute right-1 top-1 h-2 w-2 border-r border-t border-[#00e676]" />
           <span aria-hidden="true" className="absolute left-1 bottom-1 h-2 w-2 border-l border-b border-[#00e676]" />
           <span aria-hidden="true" className="absolute right-1 bottom-1 h-2 w-2 border-r border-b border-[#00e676]" />
-          <img src="/favicon.svg" alt="SHREE peer-to-peer transfer emblem" className="w-full h-full object-contain drop-shadow-[0_0_16px_rgba(0,230,118,0.35)]" />
+          <img src="/dr-doom-emblem.webp" width={96} height={96} alt="DR DOOM hooded emerald emblem" className="w-full h-full object-contain drop-shadow-[0_0_16px_rgba(0,230,118,0.35)]" />
         </div>
       </div>
       <div className="space-y-3">
-        <h1 className="doomsday-hero-title font-mono font-black text-6xl sm:text-7xl lg:text-8xl tracking-[-0.07em] leading-none">SHREE</h1>
+        <h1 className="doomsday-hero-title font-mono font-black text-[clamp(2.9rem,10vw,6.5rem)] tracking-[-0.065em] leading-none">DR DOOM</h1>
         <p className="font-mono text-xs sm:text-sm font-semibold text-[#00e676] tracking-[0.27em] uppercase">Private. Direct. Simple.</p>
       </div>
       <p className="text-sm sm:text-base text-[#afc8b7] max-w-md mx-auto leading-relaxed">

@@ -207,7 +207,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
       if (zipEntries.length > 0) {
         const zipBlob = await ZipStreamer.createZip(zipEntries);
         const zipUrl = URL.createObjectURL(zipBlob);
-        const zipName = `shree_bundle_${new Date().toISOString().slice(0, 10)}.zip`;
+        const zipName = `dr-doom-bundle_${new Date().toISOString().slice(0, 10)}.zip`;
         handleDownloadClick(zipUrl, zipName);
         setTimeout(() => URL.revokeObjectURL(zipUrl), 30000);
       }

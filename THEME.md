@@ -1,4 +1,4 @@
-# SHREE: Doomsday Green UI
+# DR DOOM: Doomsday Green UI
 
 The new visual theme is a restrained cinematic take on a radioactive-green network interface.
 
