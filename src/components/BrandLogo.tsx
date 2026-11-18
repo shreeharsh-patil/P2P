@@ -10,7 +10,7 @@ export const BrandLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'md'
         <img 
           src="/favicon.svg" 
           alt="SHREE Logo" 
-          className="w-full h-full object-contain filter drop-shadow-[0_0_8px_rgba(255,48,48,0.4)] group-hover:drop-shadow-[0_0_14px_rgba(255,48,48,0.7)] transition-all duration-300 transform group-hover:scale-105"
+          className="w-full h-full object-contain filter drop-shadow-[0_0_8px_rgba(0,230,118,0.4)] group-hover:drop-shadow-[0_0_14px_rgba(0,230,118,0.7)] transition-all duration-300 transform group-hover:scale-105"
         />
       </div>
 

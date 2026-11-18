@@ -30,7 +30,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenSettings
 }) => {
   return (
-    <header className="w-full border-b border-[#1c1c22] bg-[#050505]/80 backdrop-blur-md sticky top-0 z-40">
+    <header className="w-full border-b border-[#1c3829] bg-[#050a07]/80 backdrop-blur-md sticky top-0 z-40">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
         {/* Brand */}
         <BrandLogo size="sm" />
@@ -45,7 +45,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           {onOpenSettings && (
             <button
               onClick={onOpenSettings}
-              className="p-1.5 text-[#8a8a8a] hover:text-white hover:bg-[#141418] border border-transparent hover:border-[#26262e] rounded-xs transition-colors"
+              className="p-1.5 text-[#8a8a8a] hover:text-white hover:bg-[#11241a] border border-transparent hover:border-[#2a4635] rounded-xs transition-colors"
               title="Settings"
             >
               <Settings className="w-4 h-4" />
