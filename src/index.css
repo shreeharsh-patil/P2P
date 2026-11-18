@@ -1,15 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --bg-base: #050505;
-  --bg-panel: #0a0a0c;
-  --bg-panel-hover: #121216;
-  --border-subtle: #1c1c22;
-  --border-accent: #381014;
-  --border-red: #e51b23;
-  --accent-red: #ff2b2b;
-  --accent-crimson: #e51b23;
-  --accent-darkred: #7a0d12;
+  --bg-base: #050a07;
+  --bg-panel: #0b1710;
+  --bg-panel-hover: #11241a;
+  --border-subtle: #1c3829;
+  --border-accent: #133c2a;
+  --border-green: #00c56b;
+  --accent-green: #00e676;
+  --accent-emerald: #00c56b;
+  --accent-darkgreen: #075f36;
   --text-primary: #f2f2f2;
   --text-secondary: #8a8a8a;
   --text-muted: #4a4a4a;
@@ -33,13 +33,13 @@
 }
 
 ::selection {
-  background: var(--accent-crimson);
-  color: #ffffff;
+  background: var(--accent-emerald);
+  color: #04160b;
 }
 
 /* Background & Lighting */
 .bg-grid-dots {
-  background-image: radial-gradient(rgba(229, 27, 35, 0.15) 1.2px, transparent 1.2px);
+  background-image: radial-gradient(rgba(0,230,118, 0.15) 1.2px, transparent 1.2px);
   background-size: 24px 24px;
 }
 
@@ -53,8 +53,8 @@
 
 .tech-panel-hover:hover {
   background-color: var(--bg-panel-hover);
-  border-color: rgba(229, 27, 35, 0.4);
-  box-shadow: 0 0 20px rgba(229, 27, 35, 0.12);
+  border-color: rgba(0,230,118, 0.4);
+  box-shadow: 0 0 20px rgba(0,230,118, 0.12);
   transform: translateY(-1px);
 }
 
@@ -75,9 +75,9 @@
   background: linear-gradient(
     180deg,
     transparent 0%,
-    rgba(255, 48, 48, 0.05) 50%,
-    rgba(255, 48, 48, 0.18) 98%,
-    rgba(255, 48, 48, 0.5) 100%
+    rgba(0,230,118, 0.05) 50%,
+    rgba(0,230,118, 0.18) 98%,
+    rgba(0,230,118, 0.5) 100%
   );
   animation: radarSweep 10s linear infinite;
   pointer-events: none;
@@ -101,7 +101,7 @@
   border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-crimson);
+  background: var(--accent-emerald);
 }
 
 /* Keyframe Animations */
@@ -134,10 +134,10 @@
 
 @keyframes glowPulse {
   0%, 100% {
-    box-shadow: 0 0 15px rgba(255, 48, 48, 0.25);
+    box-shadow: 0 0 15px rgba(0,230,118, 0.25);
   }
   50% {
-    box-shadow: 0 0 35px rgba(255, 48, 48, 0.55);
+    box-shadow: 0 0 35px rgba(0,230,118, 0.55);
   }
 }
 
@@ -188,3 +188,35 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Doomsday Green: high-contrast transfer interface with atmospheric depth. */
+.doomsday-shell { isolation: isolate; background-color: #050a07; }
+.doomsday-shell .tech-panel {
+  background: linear-gradient(145deg, rgba(13, 30, 20, 0.94), rgba(5, 13, 8, 0.96));
+  border-color: rgba(87, 156, 111, 0.25);
+  box-shadow: inset 0 1px 0 rgba(168,255,195,0.04), 0 18px 42px rgba(0,0,0,0.18);
+  border-radius: 6px;
+}
+.doomsday-shell .tech-panel-hover:hover {
+  border-color: rgba(0,230,118,0.45);
+  box-shadow: 0 0 22px rgba(0,230,118,0.12), 0 18px 42px rgba(0,0,0,0.22);
+}
+.doomsday-shell :is(button,input,select,textarea,summary,a):focus-visible {
+  outline: 2px solid #89ffc0; outline-offset: 3px;
+}
+.doomsday-shell [class*="bg-[#00e676]"] { color: #03160a; }
+.doomsday-hero-title {
+  color: #ecfff2;
+  background: linear-gradient(180deg,#ffffff 5%,#c5ffdd 55%,#47dc8b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 10px 32px rgba(0,230,118,0.16));
+}
+.doomsday-emblem {
+  background: radial-gradient(circle at 50% 40%,rgba(0,230,118,0.15),rgba(3,13,7,0.96) 69%);
+  box-shadow: 0 0 0 1px rgba(0,230,118,0.27),0 0 60px rgba(0,230,118,0.17),inset 0 0 38px rgba(0,230,118,0.08);
+}
+.doomsday-eyebrow { color: #9cfdc5; text-shadow: 0 0 18px rgba(0,230,118,0.15); }
+.doomsday-hud-line { background: linear-gradient(90deg,transparent,rgba(0,230,118,.55),transparent); }
+@media(max-width:640px) { .doomsday-shell .tech-panel { box-shadow: 0 8px 24px rgba(0,0,0,.14); } }

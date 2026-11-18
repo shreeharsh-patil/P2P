@@ -87,7 +87,7 @@ export const TextTransfer: React.FC<TextTransferProps> = ({
   const recent = messages.slice(-10).reverse();
 
   return (
-    <div className="tech-panel p-5 bg-[#09090b] border border-[#1c1c22] space-y-4 font-mono">
+    <div className="tech-panel p-5 bg-[#09140e] border border-[#1c3829] space-y-4 font-mono">
       <div className="text-xs text-[#8a8a8a] tracking-[0.25em] uppercase flex items-center justify-between">
         <span>// TEXT CHANNEL</span>
         <div className="flex flex-wrap justify-end gap-x-3 gap-y-1">
@@ -106,7 +106,7 @@ export const TextTransfer: React.FC<TextTransferProps> = ({
             <button
               type="button"
               onClick={handlePasteClipboard}
-              className="text-[10px] text-[#ff2b2b] hover:underline flex items-center gap-1 font-mono uppercase tracking-wider"
+              className="text-[10px] text-[#00e676] hover:underline flex items-center gap-1 font-mono uppercase tracking-wider"
               title="Paste from clipboard"
             >
               <Clipboard className="w-3 h-3" />
@@ -126,12 +126,12 @@ export const TextTransfer: React.FC<TextTransferProps> = ({
           placeholder={isConnected ? 'Type or paste a message... (Shift+Enter for new line)' : 'Awaiting peer connection'}
           disabled={!isConnected}
           aria-label="Text message"
-          className="flex-1 min-h-[72px] max-h-40 resize-y overflow-y-auto bg-[#050505] border border-[#1c1c22] focus:border-[#ff2b2b] rounded-sm px-3 py-2 text-xs leading-relaxed text-[#f2f2f2] placeholder:text-[#4a4a4a] focus:outline-none disabled:opacity-40 transition-colors font-mono whitespace-pre-wrap"
+          className="flex-1 min-h-[72px] max-h-40 resize-y overflow-y-auto bg-[#050a07] border border-[#1c3829] focus:border-[#00e676] rounded-sm px-3 py-2 text-xs leading-relaxed text-[#f2f2f2] placeholder:text-[#4a4a4a] focus:outline-none disabled:opacity-40 transition-colors font-mono whitespace-pre-wrap"
         />
         <button
           type="submit"
           disabled={!isConnected || !prepareTextMessage(inputText)}
-          className="px-4 py-2 sm:py-3 bg-[#ff2b2b] hover:bg-[#e51b23] disabled:opacity-40 text-white rounded-sm font-mono font-bold text-xs flex items-center justify-center gap-1.5 transition-colors uppercase tracking-wider active:scale-95"
+          className="px-4 py-2 sm:py-3 bg-[#00e676] hover:bg-[#00c56b] disabled:opacity-40 text-white rounded-sm font-mono font-bold text-xs flex items-center justify-center gap-1.5 transition-colors uppercase tracking-wider active:scale-95"
         >
           <Send className="w-3.5 h-3.5" />
           Send
@@ -140,19 +140,19 @@ export const TextTransfer: React.FC<TextTransferProps> = ({
 
       {/* Messages */}
       {recent.length === 0 ? (
-        <div className="p-4 bg-[#050505] border border-[#18181c] rounded-xs text-center text-xs text-[#4a4a4a]">
+        <div className="p-4 bg-[#050a07] border border-[#172d21] rounded-xs text-center text-xs text-[#4a4a4a]">
           NO MESSAGES YET — Send a message to your peer.
         </div>
       ) : (
-        <div className="pt-2 border-t border-[#1c1c22] space-y-3">
+        <div className="pt-2 border-t border-[#1c3829] space-y-3">
           <div className="text-[10px] text-[#4a4a4a] tracking-[0.2em] uppercase">
             // RECENT MESSAGES
           </div>
 
           {recent.map((msg) => (
-            <div key={msg.id} className="p-2.5 bg-[#050505] border border-[#18181c] rounded-xs space-y-1">
+            <div key={msg.id} className="p-2.5 bg-[#050a07] border border-[#172d21] rounded-xs space-y-1">
               <div className="flex items-center justify-between">
-                <span className={`text-[10px] font-mono font-bold uppercase tracking-wider ${msg.sender === 'me' ? 'text-[#ff2b2b]' : 'text-emerald-400'}`}>
+                <span className={`text-[10px] font-mono font-bold uppercase tracking-wider ${msg.sender === 'me' ? 'text-[#00e676]' : 'text-emerald-400'}`}>
                   {msg.sender === 'me' ? 'YOU' : 'REMOTE PEER'}
                 </span>
                 <div className="flex items-center gap-2">

@@ -98,9 +98,9 @@ export const AnimatedBackground: React.FC = () => {
         // Draw particle point
         ctx.beginPath();
         ctx.arc(p1.x, p1.y, p1.radius, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 48, 48, ${p1.opacity})`;
+        ctx.fillStyle = `rgba(0,230,118, ${p1.opacity})`;
         ctx.shadowBlur = p1.radius * 3;
-        ctx.shadowColor = '#ff3030';
+        ctx.shadowColor = '#00e676';
         ctx.fill();
         ctx.shadowBlur = 0;
 
@@ -116,7 +116,7 @@ export const AnimatedBackground: React.FC = () => {
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(mPos.x, mPos.y);
             const lineOpacity = (1 - mdist / 140) * 0.25;
-            ctx.strokeStyle = `rgba(255, 48, 48, ${lineOpacity})`;
+            ctx.strokeStyle = `rgba(0,230,118, ${lineOpacity})`;
             ctx.lineWidth = 0.8;
             ctx.stroke();
           }
@@ -134,7 +134,7 @@ export const AnimatedBackground: React.FC = () => {
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
             const lineOpacity = (1 - dist / 120) * 0.14;
-            ctx.strokeStyle = `rgba(255, 48, 48, ${lineOpacity})`;
+            ctx.strokeStyle = `rgba(0,230,118, ${lineOpacity})`;
             ctx.lineWidth = 0.7;
             ctx.stroke();
           }
@@ -155,12 +155,12 @@ export const AnimatedBackground: React.FC = () => {
   }, [isMobile, reducedMotion]);
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-[#050505]">
+    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-[#050a07]">
       {/* Radial red atmosphere glow centered behind hero */}
       <div 
         className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[550px] pointer-events-none opacity-40 blur-[130px]"
         style={{
-          background: 'radial-gradient(circle, rgba(255, 48, 48, 0.20) 0%, rgba(122, 13, 18, 0.06) 55%, transparent 80%)'
+          background: 'radial-gradient(circle, rgba(0,230,118, 0.20) 0%, rgba(122, 13, 18, 0.06) 55%, transparent 80%)'
         }}
       />
 
@@ -173,6 +173,9 @@ export const AnimatedBackground: React.FC = () => {
         }}
       />
 
+      {/* Green aurora and low-cost atmospheric haze */}
+      <div className="absolute inset-0 pointer-events-none opacity-80" style={{ background: 'radial-gradient(ellipse 65% 35% at 50% 10%, rgba(0,230,118,0.08), transparent 80%), radial-gradient(ellipse 80% 38% at 50% 100%, rgba(7,95,54,0.22), transparent 85%)' }} />
+      <div className="absolute inset-0 pointer-events-none opacity-60" style={{ background: 'linear-gradient(90deg, rgba(0,0,0,0.32), transparent 25%, transparent 75%, rgba(0,0,0,0.32))' }} />
       {/* Canvas Particle Network */}
       <canvas ref={canvasRef} className={`absolute inset-0 w-full h-full ${isMobile ? 'opacity-35' : 'opacity-55'}`} />
 

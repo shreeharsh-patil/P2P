@@ -36,9 +36,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-      <div className="tech-panel p-6 max-w-md w-full relative bg-[#09090b] border border-[#ff2b2b]/50 shadow-[0_0_30px_rgba(255,43,43,0.15)] font-mono space-y-5">
-        <div className="flex items-center justify-between border-b border-[#1c1c22] pb-3">
-          <div className="flex items-center gap-2 text-[#ff2b2b]">
+      <div className="tech-panel p-6 max-w-md w-full relative bg-[#09140e] border border-[#00e676]/50 shadow-[0_0_30px_rgba(0,230,118,0.15)] font-mono space-y-5">
+        <div className="flex items-center justify-between border-b border-[#1c3829] pb-3">
+          <div className="flex items-center gap-2 text-[#00e676]">
             <Settings className="w-5 h-5" />
             <h3 className="text-sm font-bold text-[#f2f2f2] tracking-wide">Settings</h3>
           </div>
@@ -53,7 +53,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Chunk Size Selector */}
         <div className="space-y-2">
           <label className="text-xs font-bold text-[#8a8a8a] flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-[#ff2b2b]" />
+            <Cpu className="w-4 h-4 text-[#00e676]" />
             Chunk size
           </label>
           <div className="grid grid-cols-1 gap-2">
@@ -63,8 +63,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onClick={() => onChunkSizeChange(item.value)}
                 className={`py-2 px-3 text-xs font-mono rounded-xs border text-left transition-all ${
                   chunkSize === item.value
-                    ? 'bg-[#180a0c] border-[#ff2b2b] text-[#ff2b2b] font-bold'
-                    : 'bg-[#050505] border-[#1c1c22] text-[#8a8a8a] hover:border-[#26262e]'
+                    ? 'bg-[#0c281a] border-[#00e676] text-[#00e676] font-bold'
+                    : 'bg-[#050a07] border-[#1c3829] text-[#8a8a8a] hover:border-[#2a4635]'
                 }`}
               >
                 {item.label}
@@ -74,14 +74,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Storage Strategy Toggle */}
-        <div className="space-y-2 pt-3 border-t border-[#1c1c22]">
+        <div className="space-y-2 pt-3 border-t border-[#1c3829]">
           <label className="text-xs font-bold text-[#8a8a8a] flex items-center gap-2">
             <HardDrive className="w-4 h-4 text-emerald-400" />
             Save strategy
           </label>
           <div
             onClick={() => onPreferDirectSaveChange(!preferDirectSave)}
-            className="p-3 bg-[#050505] rounded-xs border border-[#1c1c22] flex items-center justify-between cursor-pointer hover:border-[#26262e] transition-colors"
+            className="p-3 bg-[#050a07] rounded-xs border border-[#1c3829] flex items-center justify-between cursor-pointer hover:border-[#2a4635] transition-colors"
           >
             <div>
               <div className="text-xs font-bold text-[#f2f2f2]">Use native file picker</div>
@@ -91,20 +91,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               type="checkbox"
               checked={preferDirectSave}
               onChange={() => {}}
-              className="accent-[#ff2b2b] w-4 h-4"
+              className="accent-[#00e676] w-4 h-4"
             />
           </div>
         </div>
 
         {/* Auto-Accept Files Toggle */}
-        <div className="space-y-2 pt-3 border-t border-[#1c1c22]">
+        <div className="space-y-2 pt-3 border-t border-[#1c3829]">
           <label className="text-xs font-bold text-[#8a8a8a] flex items-center gap-2">
-            <Zap className="w-4 h-4 text-[#ff2b2b]" />
+            <Zap className="w-4 h-4 text-[#00e676]" />
             Auto-accept transfers
           </label>
           <div
             onClick={() => onAutoAcceptFilesChange(!autoAcceptFiles)}
-            className="p-3 bg-[#050505] rounded-xs border border-[#1c1c22] flex items-center justify-between cursor-pointer hover:border-[#26262e] transition-colors"
+            className="p-3 bg-[#050a07] rounded-xs border border-[#1c3829] flex items-center justify-between cursor-pointer hover:border-[#2a4635] transition-colors"
           >
             <div>
               <div className="text-xs font-bold text-[#f2f2f2]">Auto-accept incoming files</div>
@@ -114,26 +114,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               type="checkbox"
               checked={autoAcceptFiles}
               onChange={() => {}}
-              className="accent-[#ff2b2b] w-4 h-4"
+              className="accent-[#00e676] w-4 h-4"
             />
           </div>
         </div>
 
         {/* Audio Toggle */}
-        <div className="space-y-2 pt-3 border-t border-[#1c1c22]">
+        <div className="space-y-2 pt-3 border-t border-[#1c3829]">
           <div
             onClick={onSoundToggle}
-            className="p-3 bg-[#050505] rounded-xs border border-[#1c1c22] flex items-center justify-between cursor-pointer hover:border-[#26262e] transition-colors"
+            className="p-3 bg-[#050a07] rounded-xs border border-[#1c3829] flex items-center justify-between cursor-pointer hover:border-[#2a4635] transition-colors"
           >
             <div className="flex items-center gap-2 text-xs font-bold text-[#f2f2f2]">
-              <Volume2 className="w-4 h-4 text-[#ff2b2b]" />
+              <Volume2 className="w-4 h-4 text-[#00e676]" />
               <span>Sound effects</span>
             </div>
             <input
               type="checkbox"
               checked={soundEnabled}
               onChange={() => {}}
-              className="accent-[#ff2b2b] w-4 h-4"
+              className="accent-[#00e676] w-4 h-4"
             />
           </div>
         </div>

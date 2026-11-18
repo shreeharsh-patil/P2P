@@ -23,7 +23,7 @@ export const Toast: React.FC<ToastProps> = ({ toasts, onDismiss }) => {
               ? 'border-emerald-500/40 bg-[#06120b] text-emerald-300'
               : toast.type === 'error'
               ? 'border-[#ff2b2b]/60 bg-[#140809] text-rose-300'
-              : 'border-[#1c1c22] bg-[#09090b] text-[#f2f2f2]'
+              : 'border-[#1c3829] bg-[#09140e] text-[#f2f2f2]'
           }`}
         >
           <div className="flex items-center gap-2.5">

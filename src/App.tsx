@@ -437,7 +437,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-[#f2f2f2] flex flex-col font-sans relative overflow-x-hidden">
+    <div className="doomsday-shell min-h-screen bg-[#050a07] text-[#f2f2f2] flex flex-col font-sans relative overflow-x-hidden">
       {/* Animated Technical Background */}
       <AnimatedBackground />
 
@@ -481,12 +481,12 @@ export const App: React.FC = () => {
           ) : viewState === 'waiting' ? (
             <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-fade-in-up font-mono">
               <div className="relative w-20 h-20">
-                <div className="absolute inset-0 rounded-full border-2 border-[rgba(255,48,48,0.15)]" />
-                <div className="absolute inset-0 rounded-full border-t-2 border-[#ff3030] animate-spin" />
-                <div className="absolute inset-[6px] rounded-full border-t-2 border-[rgba(255,48,48,0.4)] animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
+                <div className="absolute inset-0 rounded-full border-2 border-[rgba(0,230,118,0.15)]" />
+                <div className="absolute inset-0 rounded-full border-t-2 border-[#00e676] animate-spin" />
+                <div className="absolute inset-[6px] rounded-full border-t-2 border-[rgba(0,230,118,0.4)] animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
               </div>
               <div className="text-center space-y-2">
-                <p className="text-sm text-[#ff3030] tracking-[0.25em] uppercase font-bold animate-pulse">
+                <p className="text-sm text-[#00e676] tracking-[0.25em] uppercase font-bold animate-pulse">
                   ESTABLISHING ENCRYPTED TUNNEL
                 </p>
                 {sessionId && (
@@ -532,7 +532,7 @@ export const App: React.FC = () => {
                     handleDisconnect();
                     setTimeout(() => handleCreateSession(), 100);
                   }}
-                  className="px-5 py-2 text-xs font-mono text-[#ff3030] border border-[#ff3030]/40 bg-[#ff3030]/10 hover:bg-[#ff3030]/20 uppercase tracking-wider transition-colors"
+                  className="px-5 py-2 text-xs font-mono text-[#00e676] border border-[#00e676]/40 bg-[#00e676]/10 hover:bg-[#00e676]/20 uppercase tracking-wider transition-colors"
                 >
                   NEW SESSION
                 </button>

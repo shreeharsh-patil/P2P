@@ -160,7 +160,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-      <div className="tech-panel p-6 max-w-sm w-full relative bg-[#09090b] border border-[#ff2b2b]/50 shadow-[0_0_30px_rgba(255,43,43,0.15)] font-mono space-y-4">
+      <div className="tech-panel p-6 max-w-sm w-full relative bg-[#09140e] border border-[#00e676]/50 shadow-[0_0_30px_rgba(0,230,118,0.15)] font-mono space-y-4">
         <button
           onClick={() => {
             stopScanner();
@@ -172,7 +172,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         </button>
 
         <div className="text-center space-y-3">
-          <div className="flex items-center justify-center gap-2 text-[#ff2b2b]">
+          <div className="flex items-center justify-center gap-2 text-[#00e676]">
             <Camera className="w-5 h-5" />
             <h3 className="text-sm font-bold text-[#f2f2f2] tracking-wide">QR Scanner</h3>
           </div>
@@ -181,11 +181,11 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           </p>
 
           {/* CAMERA VIEWFINDER */}
-          <div className="rounded-xs overflow-hidden bg-[#050505] border border-[#ff2b2b]/40 p-2 min-h-[250px] relative flex items-center justify-center">
+          <div className="rounded-xs overflow-hidden bg-[#050a07] border border-[#00e676]/40 p-2 min-h-[250px] relative flex items-center justify-center">
             <div id="qr-reader-container" className="w-full text-white overflow-hidden rounded-xs"></div>
 
             {isStarting && (
-              <div className="absolute inset-0 bg-[#050505]/80 flex flex-col items-center justify-center gap-2 text-xs text-[#ff8080]">
+              <div className="absolute inset-0 bg-[#050a07]/80 flex flex-col items-center justify-center gap-2 text-xs text-[#ff8080]">
                 <RefreshCw className="w-5 h-5 animate-spin" />
                 <span>Starting camera...</span>
               </div>
@@ -205,7 +205,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
             <button
               type="button"
               onClick={handleFlipCamera}
-              className="px-3 py-1.5 text-xs font-mono text-[#a0a0a0] hover:text-white bg-[#141418] border border-[#26262e] rounded-xs flex items-center gap-1.5 transition-colors"
+              className="px-3 py-1.5 text-xs font-mono text-[#a0a0a0] hover:text-white bg-[#11241a] border border-[#2a4635] rounded-xs flex items-center gap-1.5 transition-colors"
               title="Switch between front and rear cameras"
             >
               <SwitchCamera className="w-3.5 h-3.5" />
@@ -215,7 +215,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="px-3 py-1.5 text-xs font-mono text-[#ff8080] hover:text-white bg-[#180a0c] border border-[#ff2b2b]/40 rounded-xs flex items-center gap-1.5 transition-colors"
+              className="px-3 py-1.5 text-xs font-mono text-[#ff8080] hover:text-white bg-[#0c281a] border border-[#00e676]/40 rounded-xs flex items-center gap-1.5 transition-colors"
               title="Upload QR code from gallery"
             >
               <Image className="w-3.5 h-3.5" />
