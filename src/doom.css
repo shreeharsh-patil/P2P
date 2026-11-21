@@ -66,21 +66,56 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   .doom-topbar { background: rgba(2, 10, 5, .91); }
 }
 
-/* Center the icon-free landing actions across desktop and mobile. */
+/* True horizontal/vertical centering for both icon-free session buttons. */
 .doom-action-primary,
 .doom-action-secondary {
-  justify-content: center;
+  width: 100%;
+  min-height: 96px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  padding: 18px 16px;
   text-align: center;
 }
 .doom-action-primary > span,
 .doom-action-secondary > span {
   display: flex;
-  flex: 1 1 auto;
+  flex: none;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   min-width: 0;
   width: 100%;
+  margin: 0;
+  text-align: center;
+}
+.doom-action-primary strong,
+.doom-action-secondary strong {
+  margin: 0;
+  text-align: center;
+  line-height: 1.2;
+}
+.doom-action-primary small,
+.doom-action-secondary small {
+  margin: 0;
+  text-align: center;
+  line-height: 1.35;
+}
+
+@media (max-width: 767px) {
+  /* Leave matching side margins so the action card is centered, not clipped. */
+  .doom-actions {
+    box-sizing: border-box;
+    width: calc(100% - 32px);
+    margin-inline: auto;
+  }
+
+  /* Start the portrait artwork below the mobile header with a small top gap. */
+  .doom-world-art {
+    background-position: center 78px;
+    background-size: 92vw auto;
+  }
 }
 
 /* Keep mobile scrolling without allowing pinch-to-zoom page scaling. */
