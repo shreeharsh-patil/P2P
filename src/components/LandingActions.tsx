@@ -7,7 +7,7 @@ export const LandingActions:React.FC<LandingActionsProps>=({activeMode,onCreateS
  const [inputCode,setInputCode]=useState('');
  const submit=(e:React.FormEvent)=>{e.preventDefault();if(/^\d{6}$/.test(inputCode.trim()))onJoinSession(inputCode.trim());};
  const paste=async()=>{try{const raw=await navigator.clipboard.readText();const m=raw.match(/(?:join=|\/join\/)?(\d{6})/);if(m)setInputCode(m[1]);}catch{/* Clipboard permission denied */}};
- return <div className="doom-actions max-w-xl mx-auto w-full">
+ return <div className="doom-actions max-w-xl mx-auto">
   <div className="doom-actions-title">CHOOSE YOUR CONNECTION</div>
   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
    <button type="button" onClick={onCreateSession} className="doom-action-primary">
