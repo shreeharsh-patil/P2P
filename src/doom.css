@@ -1,0 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Rajdhani:wght@500;600;700&display=swap');
+:root{color-scheme:dark;--bg-base:#030805;--bg-panel:rgba(7,20,11,.88);--bg-panel-hover:#102317;--border-subtle:#25432c;--border-accent:#4f9d47;--accent-red:#8dff4f;--accent-crimson:#73de52;--text-primary:#effaf0;--text-secondary:#a3bbaa;--text-muted:#6e8675}
+html,body{background:#020603!important}body{font-family:'Rajdhani',system-ui,sans-serif!important;color:#effaf0}#root{isolation:isolate;min-height:100vh}
+.doom-world{background:radial-gradient(ellipse at 57% 28%,#123b1b,#051108 57%,#010402)}
+.doom-world-art{position:absolute;inset:0;background-image:url('/doom/doom-stained-glass.webp');background-repeat:no-repeat;background-size:min(82vw,720px) auto;background-position:calc(50% + 225px) 30px;opacity:.68;filter:saturate(1.12) contrast(1.12);mask-image:radial-gradient(ellipse 45% 57% at 62% 34%,black 20%,transparent 90%)}
+.doom-world-vignette{position:absolute;inset:0;background:linear-gradient(90deg,rgba(2,7,3,.93),rgba(2,7,3,.6) 48%,rgba(2,7,3,.28) 78%,rgba(2,7,3,.85)),linear-gradient(180deg,transparent,rgba(1,5,2,.55) 70%,#020603)}
+.doom-orbit{position:absolute;left:calc(50% + 225px);top:210px;width:min(46vw,470px);height:min(46vw,470px);border-radius:50%;border:1px solid #8dff4f40;box-shadow:0 0 52px #5dff3d28,inset 0 0 38px #48ef3620;transform:translateX(-50%);animation:doom-orbit 32s linear infinite}
+.doom-orbit:before,.doom-orbit:after{content:'';position:absolute;inset:12%;border:1px dashed #8dff4f40;border-radius:50%}.doom-orbit:after{inset:26%;border-style:solid;opacity:.3}
+.doom-orbit span{position:absolute;color:#a1ff7b;text-shadow:0 0 16px #8dff4f;font-size:24px}.doom-orbit span:nth-child(1){left:48%;top:-12px}.doom-orbit span:nth-child(2){right:-12px;top:48%}.doom-orbit span:nth-child(3){left:48%;bottom:-12px}.doom-orbit span:nth-child(4){left:-12px;top:48%}
+@keyframes doom-orbit{to{transform:translateX(-50%) rotate(360deg)}}
+.doom-brand-icon{filter:drop-shadow(0 0 12px #8dff4f99);transition:transform .2s}.doom-brand:hover .doom-brand-icon{transform:scale(1.07)}
+.doom-logo-type,.doom-title{font-family:'Barlow Condensed','Rajdhani',sans-serif;color:#f4ffeb;line-height:1}
+.doom-hero{min-height:330px;padding-top:65px;padding-bottom:32px;display:flex;align-items:center}.doom-hero-content{width:min(100%,660px)}.doom-overline{font-size:11px;font-weight:700;letter-spacing:.25em;color:#b3ff93}
+.doom-title{font-size:clamp(64px,10.5vw,138px);font-weight:900;letter-spacing:-.03em;margin:14px 0 8px;text-shadow:0 3px 24px #000}.doom-title span{color:#a5ff78;text-shadow:0 0 46px #86ff5a5c}
+.doom-subtitle{font-weight:700;letter-spacing:.27em;color:#b5ff8f;font-size:clamp(12px,1.6vw,17px);margin:12px 0}.doom-intro{color:#bed0c0;max-width:460px;line-height:1.5;font-size:17px}
+.doom-benefits{display:flex;gap:16px;flex-wrap:wrap;color:#b2cbb2;font-size:13px;font-weight:600;margin-top:21px}.doom-benefits span{display:inline-flex;align-items:center;gap:5px}.doom-benefits svg{color:#a4ff6f}.doom-hero-emblem{display:none}
+.doom-actions{padding:24px;position:relative;border:1px solid #8dff4f44;background:linear-gradient(145deg,#0b1e10e8,#030905ef);border-radius:16px;box-shadow:0 20px 75px #0009;backdrop-filter:blur(18px)}
+.doom-actions:before{content:'';position:absolute;top:0;left:20px;right:20px;height:1px;background:linear-gradient(90deg,transparent,#8dff4f,transparent)}
+.doom-actions-title{font-weight:700;letter-spacing:.25em;color:#b4dbb3;font-size:11px;margin-bottom:13px;display:block}
+.doom-action-primary,.doom-action-secondary{min-height:87px;border-radius:10px;padding:14px;display:flex;gap:11px;align-items:center;text-align:left;transition:transform .2s,box-shadow .2s}
+.doom-action-primary{background:linear-gradient(110deg,#afff82,#65d849);color:#081708;box-shadow:0 0 28px #80ff502e}
+.doom-action-secondary{border:1px solid #80dc6e70;background:#15261bc9;color:#edf9e9}.doom-action-secondary.active{border-color:#a5ff77;background:#29492b}
+.doom-action-primary:hover,.doom-action-secondary:hover{transform:translateY(-2px);box-shadow:0 0 33px #80ff5040}
+.doom-action-primary strong,.doom-action-secondary strong{display:block;font-size:14px;font-weight:800;letter-spacing:.06em}.doom-action-primary small,.doom-action-secondary small{display:block;font-size:11px;opacity:.8;margin-top:4px}.doom-action-primary>span,.doom-action-secondary>span{flex:1}
+.doom-join-panel{padding:20px 2px 0}.doom-join-input{padding:11px 15px;background:#031009;border:1px solid #86e56f77;border-radius:8px;color:#f5fff0;text-align:center;font-size:24px;font-weight:700;letter-spacing:.25em}.doom-join-input:focus{border-color:#a5ff77;outline:3px solid #8dff4f20}
+.doom-icon-button,.doom-secondary-button{background:#1b3722;border:1px solid #85df74aa;border-radius:8px;color:#e3ffdb;padding:12px;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:48px}
+.doom-primary-button{border-radius:8px;background:#a4ff76;color:#092009;min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:12px;font-weight:800;letter-spacing:.12em}.doom-primary-button:disabled{opacity:.4;cursor:not-allowed}
+.tech-panel{background:rgba(5,17,9,.9)!important;border-color:#76df7040!important;backdrop-filter:blur(12px);border-radius:12px!important}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #a4ff76;outline-offset:2px}
+[class*='bg-[#8dff4f]']{color:#071305!important}
+::selection{background:#a3ff72;color:#051008}
+@media(max-width:767px){.doom-world-art{background-size:92vw auto;background-position:center 8px;opacity:.8;mask-image:linear-gradient(180deg,#000,transparent 68%)}.doom-world-vignette{background:linear-gradient(180deg,#02070308,#02070380 27%,#020703ef 57%,#020603)}.doom-orbit{left:50%;top:95px;width:76vw;height:76vw;opacity:.55}.doom-hero{min-height:450px;padding-top:50px;align-items:end;text-align:center;padding-bottom:22px}.doom-hero-content{margin:auto}.doom-hero-emblem{display:block;margin-bottom:12px}.doom-hero-emblem img{width:72px;height:72px;object-fit:contain;margin:auto;filter:drop-shadow(0 0 20px #78ff5988)}.doom-overline{font-size:9px;letter-spacing:.15em}.doom-title{font-size:clamp(58px,16vw,82px)}.doom-intro{font-size:15px}.doom-benefits{justify-content:center;gap:9px}.doom-actions{padding:18px}}
+@media(prefers-reduced-motion:reduce){.doom-orbit{animation:none!important}.doom-action-primary,.doom-action-secondary{transition:none!important}}

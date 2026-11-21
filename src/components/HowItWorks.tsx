@@ -29,10 +29,10 @@ export const HowItWorks: React.FC = () => {
         {steps.map((step, idx) => (
           <div
             key={step.num}
-            className="tech-panel p-5 space-y-2 relative border border-[#1c1c22] bg-[#09090b] hover:border-[#ff2b2b]/40 transition-colors"
+            className="tech-panel p-5 space-y-2 relative border border-[#1c1c22] bg-[#09090b] hover:border-[#8dff4f]/40 transition-colors"
           >
             <div className="flex items-center justify-between">
-              <span className="font-mono text-xs font-bold text-[#ff2b2b]">
+              <span className="font-mono text-xs font-bold text-[#8dff4f]">
                 {step.num}
               </span>
               <span className="font-mono text-xs text-[#f2f2f2] font-semibold tracking-wider">

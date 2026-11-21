@@ -41,12 +41,12 @@ const isArchive = (name: string, type: string) =>
   /\.(zip|tar|gz|tgz|rar|7z)$/i.test(name);
 
 const getFileIcon = (name: string, type: string) => {
-  if (type.startsWith('image/')) return <Image className="w-4 h-4 text-[#ff2b2b]" />;
-  if (type.startsWith('video/')) return <Video className="w-4 h-4 text-[#ff2b2b]" />;
-  if (type.startsWith('audio/')) return <Music className="w-4 h-4 text-[#ff2b2b]" />;
-  if (type.includes('pdf') || type.includes('text')) return <FileText className="w-4 h-4 text-[#ff2b2b]" />;
-  if (isArchive(name, type)) return <Archive className="w-4 h-4 text-[#ff2b2b]" />;
-  return <File className="w-4 h-4 text-[#ff2b2b]" />;
+  if (type.startsWith('image/')) return <Image className="w-4 h-4 text-[#8dff4f]" />;
+  if (type.startsWith('video/')) return <Video className="w-4 h-4 text-[#8dff4f]" />;
+  if (type.startsWith('audio/')) return <Music className="w-4 h-4 text-[#8dff4f]" />;
+  if (type.includes('pdf') || type.includes('text')) return <FileText className="w-4 h-4 text-[#8dff4f]" />;
+  if (isArchive(name, type)) return <Archive className="w-4 h-4 text-[#8dff4f]" />;
+  return <File className="w-4 h-4 text-[#8dff4f]" />;
 };
 
 const statusKindFor = (item: TransferItem): StatusKind => {
@@ -207,7 +207,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
       if (zipEntries.length > 0) {
         const zipBlob = await ZipStreamer.createZip(zipEntries);
         const zipUrl = URL.createObjectURL(zipBlob);
-        const zipName = `shree_bundle_${new Date().toISOString().slice(0, 10)}.zip`;
+        const zipName = `dr_doom_bundle_${new Date().toISOString().slice(0, 10)}.zip`;
         handleDownloadClick(zipUrl, zipName);
         setTimeout(() => URL.revokeObjectURL(zipUrl), 30000);
       }
@@ -303,8 +303,8 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
           !canTransfer
             ? 'border-[#1c1c22] bg-[#08080a]'
             : isDragOver
-            ? 'border-[#ff2b2b] bg-[#150a0c] shadow-[0_0_35px_rgba(255,43,43,0.22)] animate-glow-pulse'
-            : 'border-[#2a2a32] bg-[#0a0a0c] hover:border-[#ff2b2b]/70 hover:bg-[#0c0c0f] cursor-pointer'
+            ? 'border-[#8dff4f] bg-[#150a0c] shadow-[0_0_35px_rgba(141,255,79,0.22)] animate-glow-pulse'
+            : 'border-[#2a2a32] bg-[#0a0a0c] hover:border-[#8dff4f]/70 hover:bg-[#0c0c0f] cursor-pointer'
         }`}
       >
         <input
@@ -332,9 +332,9 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
           <div
             className={`w-14 h-14 rounded-sm border flex items-center justify-center transition-colors ${
               isDragOver
-                ? 'border-[#ff2b2b] bg-[#ff2b2b]/10 text-[#ff2b2b]'
+                ? 'border-[#8dff4f] bg-[#8dff4f]/10 text-[#8dff4f]'
                 : canTransfer
-                ? 'border-[#ff2b2b]/40 bg-[#180a0c] text-[#ff2b2b]'
+                ? 'border-[#8dff4f]/40 bg-[#180a0c] text-[#8dff4f]'
                 : 'border-[#26262e] bg-[#0c0c0e] text-[#4a4a4a]'
             }`}
           >
@@ -369,7 +369,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
               }}
               className={`px-5 py-2.5 text-xs font-mono font-bold tracking-[0.15em] uppercase rounded-sm transition-all flex items-center gap-2 active:scale-95 ${
                 canTransfer
-                  ? 'bg-[#ff2b2b] text-white hover:bg-[#e51b23] shadow-[0_0_18px_rgba(255,43,43,0.35)] hover:shadow-[0_0_25px_rgba(255,43,43,0.5)]'
+                  ? 'bg-[#8dff4f] text-white hover:bg-[#59c93c] shadow-[0_0_18px_rgba(141,255,79,0.35)] hover:shadow-[0_0_25px_rgba(141,255,79,0.5)]'
                   : 'bg-[#141418] text-[#4a4a4a] cursor-not-allowed'
               }`}
             >
@@ -386,7 +386,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
               }}
               className={`px-5 py-2.5 text-xs font-mono font-bold tracking-[0.15em] uppercase rounded-sm border transition-all flex items-center gap-2 active:scale-95 ${
                 canTransfer
-                  ? 'border-[#ff2b2b]/50 bg-[#12080a] text-[#ff8080] hover:bg-[#ff2b2b]/15 hover:border-[#ff2b2b]'
+                  ? 'border-[#8dff4f]/50 bg-[#12080a] text-[#ff8080] hover:bg-[#8dff4f]/15 hover:border-[#8dff4f]'
                   : 'border-[#202026] bg-[#0c0c0e] text-[#4a4a4a] cursor-not-allowed'
               }`}
             >
@@ -467,7 +467,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
             {metrics.paused > 0 && onResumeAll && (
               <button
                 onClick={onResumeAll}
-                className="px-2.5 py-1 text-[11px] font-mono text-[#ff2b2b] bg-[#141418] border border-[#ff2b2b]/40 rounded-xs flex items-center gap-1 transition-colors"
+                className="px-2.5 py-1 text-[11px] font-mono text-[#8dff4f] bg-[#141418] border border-[#8dff4f]/40 rounded-xs flex items-center gap-1 transition-colors"
                 title="Resume all paused transfers"
               >
                 <Play className="w-3.5 h-3.5" />
@@ -479,7 +479,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
               <button
                 onClick={handleDownloadAllAsZip}
                 disabled={isZipping}
-                className="px-2.5 py-1 text-[11px] font-mono font-bold bg-[#ff2b2b]/15 hover:bg-[#ff2b2b]/25 text-[#ff8080] border border-[#ff2b2b]/40 rounded-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                className="px-2.5 py-1 text-[11px] font-mono font-bold bg-[#8dff4f]/15 hover:bg-[#8dff4f]/25 text-[#ff8080] border border-[#8dff4f]/40 rounded-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
                 title="Download all completed files packed in a ZIP archive"
               >
                 <Package className="w-3.5 h-3.5" />
@@ -501,10 +501,10 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
 
         {/* AGGREGATE BATCH PROGRESS BAR */}
         {metrics.active > 0 && (
-          <div className="tech-panel p-3 bg-[#0a0a0d] border border-[#ff2b2b]/30 rounded-sm space-y-2">
+          <div className="tech-panel p-3 bg-[#0a0a0d] border border-[#8dff4f]/30 rounded-sm space-y-2">
             <div className="flex items-center justify-between text-[11px] text-[#aaa]">
               <span className="flex items-center gap-1.5 text-white font-bold">
-                <Layers className="w-3.5 h-3.5 text-[#ff2b2b]" />
+                <Layers className="w-3.5 h-3.5 text-[#8dff4f]" />
                 STREAMING BATCH ({metrics.active} active · {metrics.completed}/{metrics.total} done)
               </span>
               <span className="text-[#ff8080]">
@@ -514,7 +514,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
             </div>
             <div className="w-full h-2 bg-[#121216] rounded-xs overflow-hidden border border-[#202028]">
               <div
-                className="h-full bg-[#ff2b2b] shadow-[0_0_10px_#ff2b2b] animate-striped-progress transition-all duration-200"
+                className="h-full bg-[#8dff4f] shadow-[0_0_10px_#8dff4f] animate-striped-progress transition-all duration-200"
                 style={{ width: `${metrics.overallPercent}%` }}
               />
             </div>
@@ -541,7 +541,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
                   onClick={() => setActiveTab(tab)}
                   className={`px-3 py-1 text-[11px] uppercase tracking-wider rounded-xs border transition-colors ${
                     activeTab === tab
-                      ? 'border-[#ff2b2b] bg-[#ff2b2b]/10 text-white font-bold'
+                      ? 'border-[#8dff4f] bg-[#8dff4f]/10 text-white font-bold'
                       : 'border-transparent text-[#666] hover:text-[#aaa]'
                   }`}
                 >
@@ -559,7 +559,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
                   onChange={(event) => setQueueQuery(event.target.value)}
                   placeholder="Find a transfer..."
                   aria-label="Search transfers by name, path, or status"
-                  className="w-full bg-[#09090b] border border-[#26262e] focus:border-[#ff2b2b]/70 rounded-xs pl-8 pr-2 py-2 text-[11px] text-[#f2f2f2] placeholder:text-[#555] focus:outline-none"
+                  className="w-full bg-[#09090b] border border-[#26262e] focus:border-[#8dff4f]/70 rounded-xs pl-8 pr-2 py-2 text-[11px] text-[#f2f2f2] placeholder:text-[#555] focus:outline-none"
                 />
               </label>
               <label className="relative shrink-0">
@@ -568,7 +568,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
                   value={queueSort}
                   onChange={(event) => setQueueSort(event.target.value as QueueSort)}
                   aria-label="Sort transfers"
-                  className="h-full appearance-none bg-[#09090b] border border-[#26262e] rounded-xs pl-7 pr-2 py-2 text-[11px] text-[#aaa] focus:border-[#ff2b2b]/70 focus:outline-none"
+                  className="h-full appearance-none bg-[#09090b] border border-[#26262e] rounded-xs pl-7 pr-2 py-2 text-[11px] text-[#aaa] focus:border-[#8dff4f]/70 focus:outline-none"
                 >
                   <option value="recent">Recent</option>
                   <option value="name">Name</option>
@@ -624,7 +624,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
                         <>
                           <button
                             onClick={() => onAcceptOffer(item.id)}
-                            className="px-3 py-1.5 text-[11px] font-mono font-bold bg-[#ff2b2b] hover:bg-[#e51b23] text-white rounded-sm transition-colors active:scale-95"
+                            className="px-3 py-1.5 text-[11px] font-mono font-bold bg-[#8dff4f] hover:bg-[#59c93c] text-white rounded-sm transition-colors active:scale-95"
                           >
                             Accept
                           </button>
@@ -642,14 +642,14 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => setPreviewItem(item)}
-                            className="px-3 py-1.5 text-[11px] font-mono text-[#aaa] border border-[#333] hover:border-[#ff2b2b] hover:text-white rounded-sm transition-colors flex items-center gap-1 active:scale-95"
+                            className="px-3 py-1.5 text-[11px] font-mono text-[#aaa] border border-[#333] hover:border-[#8dff4f] hover:text-white rounded-sm transition-colors flex items-center gap-1 active:scale-95"
                           >
-                            <Eye className="w-3.5 h-3.5 text-[#ff2b2b]" />
+                            <Eye className="w-3.5 h-3.5 text-[#8dff4f]" />
                             Preview
                           </button>
                           <button
                             onClick={() => handleDownloadClick(item.downloadUrl!, item.name)}
-                            className="px-3 py-1.5 text-[11px] font-mono font-bold bg-[#ff2b2b] hover:bg-[#e51b23] text-white rounded-sm transition-colors flex items-center gap-1.5 active:scale-95 shadow-[0_0_12px_rgba(255,48,48,0.3)]"
+                            className="px-3 py-1.5 text-[11px] font-mono font-bold bg-[#8dff4f] hover:bg-[#59c93c] text-white rounded-sm transition-colors flex items-center gap-1.5 active:scale-95 shadow-[0_0_12px_rgba(141,255,79,0.3)]"
                           >
                             <Download className="w-3.5 h-3.5" />
                             Save
@@ -671,7 +671,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
                           ) : (
                             <button
                               onClick={() => onResumeTransfer(item.id)}
-                              className="p-1.5 text-[#ff2b2b] hover:bg-[#141418] rounded-sm transition-colors"
+                              className="p-1.5 text-[#8dff4f] hover:bg-[#141418] rounded-sm transition-colors"
                               title="Resume"
                             >
                               <Play className="w-4 h-4" />
@@ -694,7 +694,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
                     <div className="space-y-2">
                       <div className="w-full h-1.5 bg-[#0a0a0c] border border-[#18181c] rounded-sm overflow-hidden">
                         <div
-                          className={`h-full bg-[#ff2b2b] shadow-[0_0_8px_#ff2b2b] transition-all duration-200 ${
+                          className={`h-full bg-[#8dff4f] shadow-[0_0_8px_#8dff4f] transition-all duration-200 ${
                             item.status === 'transferring' ? 'animate-striped-progress' : ''
                           }`}
                           style={{ width: `${item.progress.percent}%` }}

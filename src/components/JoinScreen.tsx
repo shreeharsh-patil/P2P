@@ -42,7 +42,7 @@ export const JoinScreen: React.FC<JoinScreenProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="w-8 h-8 flex items-center justify-center border border-[rgba(255,255,255,0.12)] hover:border-[#ff3030] bg-[#09090b] text-[#a0a0a0] hover:text-white rounded-xs transition-colors"
+            className="w-8 h-8 flex items-center justify-center border border-[rgba(255,255,255,0.12)] hover:border-[#8dff4f] bg-[#09090b] text-[#a0a0a0] hover:text-white rounded-xs transition-colors"
             title="Back to Home"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -58,7 +58,7 @@ export const JoinScreen: React.FC<JoinScreenProps> = ({
       </div>
 
       {/* MAIN JOIN PANEL */}
-      <div className="relative bg-[rgba(15,15,15,0.92)] border border-[rgba(255,255,255,0.08)] border-l-2 border-l-[#ff3030] rounded-xs p-6 sm:p-10 text-center space-y-8 shadow-2xl overflow-hidden max-w-lg mx-auto">
+      <div className="relative bg-[rgba(15,15,15,0.92)] border border-[rgba(255,255,255,0.08)] border-l-2 border-l-[#8dff4f] rounded-xs p-6 sm:p-10 text-center space-y-8 shadow-2xl overflow-hidden max-w-lg mx-auto">
         <div className="space-y-2">
           <h3 className="font-mono font-bold text-sm text-[#f2f2f2] uppercase tracking-wider">
             ENTER CONNECTION CODE
@@ -77,7 +77,7 @@ export const JoinScreen: React.FC<JoinScreenProps> = ({
                 onChange={(e) => setInputCode(e.target.value)}
                 placeholder="EX: QNDN-4VKX"
                 maxLength={14}
-                className="w-full bg-[#050505] border border-[rgba(255,255,255,0.12)] focus:border-[#ff3030] rounded-xs px-4 py-3 text-center font-mono text-xl tracking-widest text-[#f2f2f2] placeholder:text-[#666666] focus:outline-none transition-colors"
+                className="w-full bg-[#050505] border border-[rgba(255,255,255,0.12)] focus:border-[#8dff4f] rounded-xs px-4 py-3 text-center font-mono text-xl tracking-widest text-[#f2f2f2] placeholder:text-[#666666] focus:outline-none transition-colors"
               />
               <button
                 type="button"
@@ -92,7 +92,7 @@ export const JoinScreen: React.FC<JoinScreenProps> = ({
             <button
               type="button"
               onClick={onOpenQRScanner}
-              className="p-3 bg-[#050505] border border-[rgba(255,255,255,0.12)] hover:border-[#ff3030] text-[#ff3030] rounded-xs transition-colors"
+              className="p-3 bg-[#050505] border border-[rgba(255,255,255,0.12)] hover:border-[#8dff4f] text-[#8dff4f] rounded-xs transition-colors"
               title="Scan QR Code with Camera"
             >
               <Camera className="w-5 h-5" />
@@ -102,7 +102,7 @@ export const JoinScreen: React.FC<JoinScreenProps> = ({
           <button
             type="submit"
             disabled={inputCode.trim().length < 6}
-            className="w-full py-3 bg-[#ff3030] hover:bg-[#e31e24] disabled:opacity-30 disabled:cursor-not-allowed text-white font-mono font-bold text-xs rounded-xs shadow-[0_0_20px_rgba(255,48,48,0.25)] flex items-center justify-center gap-2 transition-all transform active:scale-98 uppercase tracking-wider"
+            className="w-full py-3 bg-[#8dff4f] hover:bg-[#e31e24] disabled:opacity-30 disabled:cursor-not-allowed text-white font-mono font-bold text-xs rounded-xs shadow-[0_0_20px_rgba(141,255,79,0.25)] flex items-center justify-center gap-2 transition-all transform active:scale-98 uppercase tracking-wider"
           >
             ESTABLISH CONNECTION
             <ArrowRight className="w-4 h-4" />

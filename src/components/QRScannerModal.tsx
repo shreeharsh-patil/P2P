@@ -160,7 +160,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-      <div className="tech-panel p-6 max-w-sm w-full relative bg-[#09090b] border border-[#ff2b2b]/50 shadow-[0_0_30px_rgba(255,43,43,0.15)] font-mono space-y-4">
+      <div className="tech-panel p-6 max-w-sm w-full relative bg-[#09090b] border border-[#8dff4f]/50 shadow-[0_0_30px_rgba(141,255,79,0.15)] font-mono space-y-4">
         <button
           onClick={() => {
             stopScanner();
@@ -172,7 +172,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         </button>
 
         <div className="text-center space-y-3">
-          <div className="flex items-center justify-center gap-2 text-[#ff2b2b]">
+          <div className="flex items-center justify-center gap-2 text-[#8dff4f]">
             <Camera className="w-5 h-5" />
             <h3 className="text-sm font-bold text-[#f2f2f2] tracking-wide">QR Scanner</h3>
           </div>
@@ -181,7 +181,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           </p>
 
           {/* CAMERA VIEWFINDER */}
-          <div className="rounded-xs overflow-hidden bg-[#050505] border border-[#ff2b2b]/40 p-2 min-h-[250px] relative flex items-center justify-center">
+          <div className="rounded-xs overflow-hidden bg-[#050505] border border-[#8dff4f]/40 p-2 min-h-[250px] relative flex items-center justify-center">
             <div id="qr-reader-container" className="w-full text-white overflow-hidden rounded-xs"></div>
 
             {isStarting && (
@@ -215,7 +215,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="px-3 py-1.5 text-xs font-mono text-[#ff8080] hover:text-white bg-[#180a0c] border border-[#ff2b2b]/40 rounded-xs flex items-center gap-1.5 transition-colors"
+              className="px-3 py-1.5 text-xs font-mono text-[#ff8080] hover:text-white bg-[#180a0c] border border-[#8dff4f]/40 rounded-xs flex items-center gap-1.5 transition-colors"
               title="Upload QR code from gallery"
             >
               <Image className="w-3.5 h-3.5" />

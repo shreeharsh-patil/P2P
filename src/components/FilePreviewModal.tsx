@@ -31,7 +31,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ item, onClos
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#1c1c22]">
           <div className="flex items-center gap-2 text-xs font-mono font-bold text-white uppercase tracking-wider truncate pr-4">
-            <Eye className="w-4 h-4 text-[#ff2b2b]" />
+            <Eye className="w-4 h-4 text-[#8dff4f]" />
             <span className="truncate">{item.name}</span>
           </div>
           <button
@@ -76,7 +76,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ item, onClos
             />
           ) : (
             <div className="text-center space-y-4 py-8">
-              <FileText className="w-12 h-12 text-[#ff2b2b] mx-auto opacity-70" />
+              <FileText className="w-12 h-12 text-[#8dff4f] mx-auto opacity-70" />
               <p className="text-xs font-mono text-[#8a8a8a]">
                 Preview not supported for this file type.
               </p>
@@ -98,7 +98,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ item, onClos
             </button>
             <button
               onClick={handleDownload}
-              className="px-4 py-2 text-xs font-mono font-bold text-white bg-[#ff2b2b] hover:bg-[#e51b23] rounded flex items-center gap-1.5 uppercase tracking-wider transition-colors active:scale-95 shadow-[0_0_15px_rgba(255,43,43,0.3)]"
+              className="px-4 py-2 text-xs font-mono font-bold text-white bg-[#8dff4f] hover:bg-[#59c93c] rounded flex items-center gap-1.5 uppercase tracking-wider transition-colors active:scale-95 shadow-[0_0_15px_rgba(141,255,79,0.3)]"
             >
               <Download className="w-3.5 h-3.5" />
               Save File
