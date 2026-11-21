@@ -4,7 +4,7 @@
  * Cache-first for static icons/manifests with offline fallback.
  */
 
-const CACHE_NAME = 'shree-p2p-cache-v2';
+const CACHE_NAME = 'doom-p2p-cache-v2';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/favicon.svg'

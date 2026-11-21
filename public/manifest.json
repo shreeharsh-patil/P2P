@@ -1,11 +1,11 @@
 {
-  "name": "Shree — Private P2P File & Text Transfer",
-  "short_name": "Shree",
-  "description": "Production-Grade Zero-Server Peer-to-Peer File & Text Transfer Platform",
+  "name": "Dr Doom — Private P2P Transfer",
+  "short_name": "Dr Doom",
+  "description": "Dr Doom — encrypted P2P file and text transfers",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#050505",
-  "theme_color": "#ff2b2b",
+  "background_color": "#040b08",
+  "theme_color": "#91ff5f",
   "icons": [
     {
       "src": "/favicon.svg",
@@ -25,7 +25,9 @@
       "files": [
         {
           "name": "files",
-          "accept": ["*/*"]
+          "accept": [
+            "*/*"
+          ]
         }
       ]
     }

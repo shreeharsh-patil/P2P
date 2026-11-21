@@ -1,111 +1,25 @@
-import React, { useState } from 'react';
-import { Camera, Link2, ArrowRight } from 'lucide-react';
-
-interface LandingActionsProps {
-  activeMode: 'create' | 'join';
-  onCreateSession: () => void;
-  onSelectJoin: () => void;
-  onJoinSession: (code: string) => void;
-  onOpenQRScanner: () => void;
-}
-
-export const LandingActions: React.FC<LandingActionsProps> = ({
-  activeMode,
-  onCreateSession,
-  onSelectJoin,
-  onJoinSession,
-  onOpenQRScanner
-}) => {
-  const [inputCode, setInputCode] = useState('');
-
-  const handleJoinSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (inputCode.trim().length >= 6) {
-      onJoinSession(inputCode.trim());
-    }
-  };
-
-  const handlePasteCode = async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        const match = text.match(/\b\d{6}\b/) || text.match(/join=(\d{6})/);
-        if (match) {
-          setInputCode(match[1] || match[0]);
-        } else {
-          setInputCode(text.trim());
-        }
-      }
-    } catch (e) {
-      /* clipboard unavailable */
-    }
-  };
-
-  return (
-    <div className="max-w-xl mx-auto w-full space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={onCreateSession}
-          className="py-3.5 bg-[#ff2b2b] hover:bg-[#e51b23] text-white font-mono font-bold text-xs tracking-[0.2em] uppercase rounded-sm shadow-[0_0_18px_rgba(255,43,43,0.3)] transition-all active:scale-[0.98]"
-        >
-          Create Session
-        </button>
-        <button
-          type="button"
-          onClick={onSelectJoin}
-          className={`py-3.5 font-mono font-bold text-xs tracking-[0.2em] uppercase rounded-sm border transition-all active:scale-[0.98] ${
-            activeMode === 'join'
-              ? 'border-[#ff2b2b]/70 text-[#ff2b2b] bg-[#ff2b2b]/5'
-              : 'border-[#2a2a32] text-[#f2f2f2] hover:border-[#ff2b2b]/60 hover:text-[#ff2b2b]'
-          }`}
-        >
-          Join Session
-        </button>
-      </div>
-
-      {activeMode === 'join' && (
-        <form onSubmit={handleJoinSubmit} className="tech-panel p-4 bg-[#09090b] border border-[#1c1c22] space-y-3">
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={inputCode}
-              onChange={(e) => setInputCode(e.target.value)}
-              placeholder="ENTER 6-DIGIT CODE"
-              maxLength={10}
-              autoFocus
-              className="flex-1 bg-[#050505] border border-[#1c1c22] focus:border-[#ff2b2b] rounded-sm px-4 py-2.5 text-center font-mono text-lg tracking-[0.2em] text-[#f2f2f2] placeholder:text-[#4a4a4a] focus:outline-none transition-colors"
-            />
-            <button
-              type="button"
-              onClick={onOpenQRScanner}
-              className="p-2.5 bg-[#050505] border border-[#1c1c22] hover:border-[#ff2b2b] text-[#ff2b2b] rounded-sm transition-colors"
-              title="Scan QR Code with camera"
-            >
-              <Camera className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handlePasteCode}
-              className="px-3 py-2 text-[11px] font-mono text-[#8a8a8a] hover:text-[#f2f2f2] border border-[#26262e] bg-[#141418] hover:bg-[#1a1a20] rounded-sm flex items-center gap-1.5 transition-colors"
-            >
-              <Link2 className="w-3.5 h-3.5" />
-              Paste
-            </button>
-            <button
-              type="submit"
-              disabled={inputCode.trim().length < 6}
-              className="flex-1 py-2 bg-[#ff2b2b] hover:bg-[#e51b23] disabled:opacity-40 disabled:cursor-not-allowed text-white font-mono font-bold text-xs tracking-[0.2em] uppercase rounded-sm flex items-center justify-center gap-2 transition-all"
-            >
-              Connect
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        </form>
-      )}
-    </div>
-  );
+import React,{useState} from 'react';
+import { Camera, Link2, ArrowRight, ShieldPlus, ScanLine } from 'lucide-react';
+interface LandingActionsProps { activeMode:'create'|'join'; onCreateSession:()=>void;onSelectJoin:()=>void;onJoinSession:(code:string)=>void;onOpenQRScanner:()=>void; }
+export const LandingActions:React.FC<LandingActionsProps>=({activeMode,onCreateSession,onSelectJoin,onJoinSession,onOpenQRScanner})=>{
+ const [code,setCode]=useState('');
+ const handleJoin=(e:React.FormEvent)=>{e.preventDefault();if(code.trim().length>=6)onJoinSession(code.trim())};
+ const paste=async()=>{try{const v=await navigator.clipboard.readText();const m=v.match(/\b\d{6}\b/)||v.match(/join=(\d{6})/);setCode(m?(m[1]||m[0]):v.trim())}catch{/* User can enter code manually. */}};
+ return <section className="max-w-2xl mx-auto px-4 sm:px-6 w-full space-y-4">
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   <button type="button" onClick={onCreateSession} className="doom-cta doom-cta-primary text-sm"><ShieldPlus className="w-5 h-5"/>Create Session<ArrowRight className="w-4 h-4"/></button>
+   <button type="button" onClick={onSelectJoin} className="doom-cta doom-cta-secondary text-sm"><ScanLine className="w-5 h-5"/>Join Session</button>
+  </div>
+  {activeMode==='join'&&<form onSubmit={handleJoin} className="doom-terminal p-4 sm:p-6 space-y-4">
+   <p className="doom-eyebrow">ENTER ACCESS CODE</p>
+   <div className="flex gap-2">
+    <input type="text" inputMode="numeric" autoFocus value={code} onChange={e=>setCode(e.target.value)} placeholder="6-DIGIT SESSION CODE" maxLength={10} aria-label="Session code" className="flex-1 min-w-0 bg-[#07110b] border border-[#345f3c] focus:border-[#a6ff75] rounded-lg px-3 py-3 text-center font-mono tracking-[.15em] text-[#e5ffd6] placeholder:text-[#59775b] focus:outline-none"/>
+    <button type="button" onClick={onOpenQRScanner} title="Scan QR code" aria-label="Scan QR code" className="h-12 w-12 grid place-items-center rounded-lg border border-[#345f3c] text-[#abff74] hover:bg-[#23452b]"><Camera className="w-5 h-5"/></button>
+   </div>
+   <div className="flex gap-2">
+    <button type="button" onClick={paste} className="inline-flex items-center gap-2 rounded-lg px-4 py-3 border border-[#345f3c] text-[#bcd7b2] hover:bg-[#183221] text-xs font-mono"><Link2 className="w-4 h-4"/>Paste</button>
+    <button type="submit" disabled={code.trim().length<6} className="doom-cta doom-cta-primary flex-1 text-xs disabled:opacity-40">Connect<ArrowRight className="w-4 h-4"/></button>
+   </div>
+  </form>}
+ </section>;
 };

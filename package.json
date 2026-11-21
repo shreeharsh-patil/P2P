@@ -1,7 +1,7 @@
 {
-  "name": "shree-p2p",
+  "name": "dr-doom-p2p",
   "version": "1.0.0",
-  "description": "Shree - Private. Direct. Simple. Production-grade P2P File & Text Transfer Platform",
+  "description": "Dr Doom — cinematic P2P file & text transfer",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -33,7 +33,6 @@
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
-
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vitest": "^4.1.10"
