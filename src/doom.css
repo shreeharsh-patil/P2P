@@ -65,3 +65,26 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 @media (prefers-reduced-transparency: reduce) {
   .doom-topbar { background: rgba(2, 10, 5, .91); }
 }
+
+/* Center the icon-free landing actions across desktop and mobile. */
+.doom-action-primary,
+.doom-action-secondary {
+  justify-content: center;
+  text-align: center;
+}
+.doom-action-primary > span,
+.doom-action-secondary > span {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  width: 100%;
+}
+
+/* Keep mobile scrolling without allowing pinch-to-zoom page scaling. */
+html, body {
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: none;
+}
