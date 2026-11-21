@@ -1,5 +1,5 @@
 import React,{useState} from 'react';
-import {Camera,Link2,ArrowRight,Crown,ScanLine} from 'lucide-react';
+import {Camera,Link2,ArrowRight} from 'lucide-react';
 interface LandingActionsProps {
  activeMode:'create'|'join';onCreateSession:()=>void;onSelectJoin:()=>void;onJoinSession:(code:string)=>void;onOpenQRScanner:()=>void;
 }
@@ -11,10 +11,10 @@ export const LandingActions:React.FC<LandingActionsProps>=({activeMode,onCreateS
   <div className="doom-actions-title">CHOOSE YOUR CONNECTION</div>
   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
    <button type="button" onClick={onCreateSession} className="doom-action-primary">
-    <Crown size={19}/><span><strong>CREATE A SESSION</strong><small>Host a secure connection</small></span><ArrowRight size={16}/>
+    <span><strong>CREATE A SESSION</strong><small>Host a secure connection</small></span>
    </button>
    <button type="button" onClick={onSelectJoin} aria-expanded={activeMode==='join'} className={'doom-action-secondary '+(activeMode==='join'?'active':'')}>
-    <ScanLine size={20}/><span><strong>JOIN A SESSION</strong><small>Connect to another device</small></span><ArrowRight size={16}/>
+    <span><strong>JOIN A SESSION</strong><small>Connect to another device</small></span>
    </button>
   </div>
   {activeMode==='join'&&<form onSubmit={submit} className="doom-join-panel animate-fade-in-up">
