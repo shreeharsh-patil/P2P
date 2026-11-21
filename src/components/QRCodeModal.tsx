@@ -23,21 +23,21 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, sessi
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-      <div className="tech-panel p-6 max-w-sm w-full relative bg-[#09090b] border border-[#ff2b2b]/50 shadow-[0_0_30px_rgba(255,43,43,0.15)] font-mono space-y-4">
+      <div className="tech-panel p-6 max-w-sm w-full relative bg-[#09170e] border border-[#91ff5f]/50 shadow-[0_0_30px_rgba(145,255,95,0.15)] font-mono space-y-4">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-1 text-[#8a8a8a] hover:text-white rounded-xs transition-colors"
+          className="absolute top-4 right-4 p-1 text-[#b1c4ac] hover:text-white rounded-xs transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
 
         <div className="text-center space-y-3">
-          <h3 className="text-sm font-bold text-[#f2f2f2] tracking-wide">Scan to connect</h3>
-          <p className="text-xs text-[#8a8a8a]">
+          <h3 className="text-sm font-bold text-[#efffe8] tracking-wide">Scan to connect</h3>
+          <p className="text-xs text-[#b1c4ac]">
             Point your camera at this code to join the session.
           </p>
 
-          <div className="bg-white p-3 rounded-xs inline-block border-2 border-[#ff2b2b]">
+          <div className="bg-white p-3 rounded-xs inline-block border-2 border-[#91ff5f]">
             <QRCodeSVG
               value={shareUrl}
               size={190}
@@ -46,14 +46,14 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, sessi
             />
           </div>
 
-          <div className="bg-[#050505] p-3 rounded-xs border border-[#1c1c22] flex items-center justify-between text-left">
+          <div className="bg-[#040b08] p-3 rounded-xs border border-[#25432c] flex items-center justify-between text-left">
             <div className="overflow-hidden mr-2 font-mono">
-              <div className="text-[9px] uppercase text-[#4a4a4a] font-bold">Pairing link</div>
-              <div className="text-xs text-[#8a8a8a] truncate">{shareUrl}</div>
+              <div className="text-[9px] uppercase text-[#718a6e] font-bold">Pairing link</div>
+              <div className="text-xs text-[#b1c4ac] truncate">{shareUrl}</div>
             </div>
             <button
               onClick={handleCopyLink}
-              className="p-2 text-[#ff2b2b] hover:text-white transition-colors flex-shrink-0"
+              className="p-2 text-[#91ff5f] hover:text-white transition-colors flex-shrink-0"
               title="Copy URL"
             >
               {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}

@@ -21,7 +21,7 @@ export const HowItWorks: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto w-full px-4 pt-4 space-y-4">
-      <div className="font-mono text-xs text-[#8a8a8a] tracking-widest uppercase">
+      <div className="font-mono text-xs text-[#b1c4ac] tracking-widest uppercase">
         How it works
       </div>
 
@@ -29,18 +29,18 @@ export const HowItWorks: React.FC = () => {
         {steps.map((step, idx) => (
           <div
             key={step.num}
-            className="tech-panel p-5 space-y-2 relative border border-[#1c1c22] bg-[#09090b] hover:border-[#ff2b2b]/40 transition-colors"
+            className="tech-panel p-5 space-y-2 relative border border-[#25432c] bg-[#09170e] hover:border-[#91ff5f]/40 transition-colors"
           >
             <div className="flex items-center justify-between">
-              <span className="font-mono text-xs font-bold text-[#ff2b2b]">
+              <span className="font-mono text-xs font-bold text-[#91ff5f]">
                 {step.num}
               </span>
-              <span className="font-mono text-xs text-[#f2f2f2] font-semibold tracking-wider">
+              <span className="font-mono text-xs text-[#efffe8] font-semibold tracking-wider">
                 {step.title}
               </span>
             </div>
 
-            <p className="text-xs text-[#8a8a8a] leading-relaxed">
+            <p className="text-xs text-[#b1c4ac] leading-relaxed">
               {step.desc}
             </p>
           </div>

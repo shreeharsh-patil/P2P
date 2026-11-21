@@ -60,7 +60,7 @@ export const ConnectedScreen: React.FC<ConnectedScreenProps> = ({
       {/* PAGE HEADER */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-[rgba(255,255,255,0.08)] pb-4">
         <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#ff3030] shadow-[0_0_8px_#ff3030]" />
+          <span className="w-2.5 h-2.5 rounded-full bg-[#a4ff70] shadow-[0_0_8px_#a4ff70]" />
           <h2 className="font-mono font-bold text-sm sm:text-base text-white tracking-wider uppercase">
             CONNECTED TO PEER
           </h2>
@@ -69,12 +69,12 @@ export const ConnectedScreen: React.FC<ConnectedScreenProps> = ({
         <div className="flex items-center gap-4 text-xs text-[#a0a0a0]">
           {sessionId && (
             <span>
-              SESSION: <span className="text-[#ff3030] font-bold">{sessionId}</span>
+              SESSION: <span className="text-[#a4ff70] font-bold">{sessionId}</span>
             </span>
           )}
           <button
             onClick={onDisconnect}
-            className="px-3 py-1 text-[11px] font-mono font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-xs uppercase tracking-wider transition-colors"
+            className="px-3 py-1 text-[11px] font-mono font-bold text-rose-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xs uppercase tracking-wider transition-colors"
           >
             DISCONNECT
           </button>

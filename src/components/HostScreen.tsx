@@ -60,29 +60,29 @@ export const HostScreen: React.FC<HostScreenProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="w-8 h-8 flex items-center justify-center border border-[rgba(255,255,255,0.12)] hover:border-[#ff3030] bg-[#09090b] text-[#a0a0a0] hover:text-white rounded-xs transition-colors"
+            className="w-8 h-8 flex items-center justify-center border border-[rgba(255,255,255,0.12)] hover:border-[#a4ff70] bg-[#09170e] text-[#a0a0a0] hover:text-white rounded-xs transition-colors"
             title="Back to Home"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <h2 className="font-mono font-bold text-sm sm:text-base text-[#f2f2f2] tracking-wider uppercase">
+          <h2 className="font-mono font-bold text-sm sm:text-base text-[#efffe8] tracking-wider uppercase">
             HOST
           </h2>
         </div>
 
         <div className="flex items-center gap-2 text-xs text-[#a0a0a0]">
-          <span className="w-2 h-2 rounded-full bg-[#ff3030] animate-ping" />
-          <span className="text-[#ff3030] font-bold tracking-wider uppercase">WAITING FOR PEER</span>
+          <span className="w-2 h-2 rounded-full bg-[#a4ff70] animate-ping" />
+          <span className="text-[#a4ff70] font-bold tracking-wider uppercase">WAITING FOR PEER</span>
         </div>
       </div>
 
       {/* MAIN SESSION PANEL */}
-      <div className="relative bg-[rgba(15,15,15,0.92)] border border-[rgba(255,255,255,0.08)] border-l-2 border-l-[#ff3030] rounded-xs p-6 sm:p-10 text-center space-y-8 shadow-2xl overflow-hidden animate-scale-in">
+      <div className="relative bg-[rgba(15,15,15,0.92)] border border-[rgba(255,255,255,0.08)] border-l-2 border-l-[#a4ff70] rounded-xs p-6 sm:p-10 text-center space-y-8 shadow-2xl overflow-hidden animate-scale-in">
         {/* Technical Corner Accents */}
-        <div className="absolute top-2 left-2 w-2 h-2 border-t border-l border-[#ff3030]/60 pointer-events-none" />
-        <div className="absolute top-2 right-2 w-2 h-2 border-t border-r border-[#ff3030]/60 pointer-events-none" />
-        <div className="absolute bottom-2 left-2 w-2 h-2 border-b border-l border-[#ff3030]/60 pointer-events-none" />
-        <div className="absolute bottom-2 right-2 w-2 h-2 border-b border-r border-[#ff3030]/60 pointer-events-none" />
+        <div className="absolute top-2 left-2 w-2 h-2 border-t border-l border-[#a4ff70]/60 pointer-events-none" />
+        <div className="absolute top-2 right-2 w-2 h-2 border-t border-r border-[#a4ff70]/60 pointer-events-none" />
+        <div className="absolute bottom-2 left-2 w-2 h-2 border-b border-l border-[#a4ff70]/60 pointer-events-none" />
+        <div className="absolute bottom-2 right-2 w-2 h-2 border-b border-r border-[#a4ff70]/60 pointer-events-none" />
 
         {/* INSTRUCTION */}
         <div className="text-xs sm:text-sm font-mono text-[#a0a0a0] uppercase tracking-[0.18em]">
@@ -92,10 +92,10 @@ export const HostScreen: React.FC<HostScreenProps> = ({
         {/* QR CODE CONTAINER WITH GLOW PULSE */}
         <div className="relative inline-block my-2">
           {/* Red Technical Corner Accent */}
-          <div className="absolute -top-2 -left-2 w-4 h-4 border-t-2 border-l-2 border-[#ff3030] pointer-events-none" />
-          <div className="absolute -top-2 -right-2 w-4 h-4 border-t-2 border-r-2 border-[#ff3030] pointer-events-none" />
-          <div className="absolute -bottom-2 -left-2 w-4 h-4 border-b-2 border-l-2 border-[#ff3030] pointer-events-none" />
-          <div className="absolute -bottom-2 -right-2 w-4 h-4 border-b-2 border-r-2 border-[#ff3030] pointer-events-none" />
+          <div className="absolute -top-2 -left-2 w-4 h-4 border-t-2 border-l-2 border-[#a4ff70] pointer-events-none" />
+          <div className="absolute -top-2 -right-2 w-4 h-4 border-t-2 border-r-2 border-[#a4ff70] pointer-events-none" />
+          <div className="absolute -bottom-2 -left-2 w-4 h-4 border-b-2 border-l-2 border-[#a4ff70] pointer-events-none" />
+          <div className="absolute -bottom-2 -right-2 w-4 h-4 border-b-2 border-r-2 border-[#a4ff70] pointer-events-none" />
 
           <div className="bg-white p-4 sm:p-5 rounded-xs inline-block shadow-xl border border-white/20 animate-glow-pulse">
             {!isExpired ? (
@@ -107,8 +107,8 @@ export const HostScreen: React.FC<HostScreenProps> = ({
                 className="w-[220px] h-[220px] sm:w-[280px] sm:h-[280px]"
               />
             ) : (
-              <div className="w-[220px] h-[220px] sm:w-[280px] sm:h-[280px] bg-[#121216] flex flex-col items-center justify-center text-center p-4 text-[#a0a0a0] font-mono text-xs">
-                <span className="text-[#ff3030] font-bold mb-2">SESSION EXPIRED</span>
+              <div className="w-[220px] h-[220px] sm:w-[280px] sm:h-[280px] bg-[#102419] flex flex-col items-center justify-center text-center p-4 text-[#a0a0a0] font-mono text-xs">
+                <span className="text-[#a4ff70] font-bold mb-2">SESSION EXPIRED</span>
                 <span>Generate a new session to continue</span>
               </div>
             )}
@@ -124,7 +124,7 @@ export const HostScreen: React.FC<HostScreenProps> = ({
 
         {/* CONNECTION CODE */}
         <div className="space-y-3">
-          <div className="font-mono text-[clamp(1.5rem,8vw,3rem)] font-extrabold tracking-[0.12em] text-[#ff3030] break-words">
+          <div className="font-mono text-[clamp(1.5rem,8vw,3rem)] font-extrabold tracking-[0.12em] text-[#a4ff70] break-words">
             {formattedCode}
           </div>
 
@@ -133,7 +133,7 @@ export const HostScreen: React.FC<HostScreenProps> = ({
             <button
               onClick={handleCopyCode}
               disabled={isExpired}
-              className="px-4 py-2 text-xs font-mono font-bold bg-[#080808] hover:bg-[#141418] disabled:opacity-30 border border-[rgba(255,255,255,0.12)] hover:border-[#ff3030] text-[#f2f2f2] rounded-xs flex items-center gap-2 transition-all active:scale-95"
+              className="px-4 py-2 text-xs font-mono font-bold bg-[#080808] hover:bg-[#102419] disabled:opacity-30 border border-[rgba(255,255,255,0.12)] hover:border-[#a4ff70] text-[#efffe8] rounded-xs flex items-center gap-2 transition-all active:scale-95"
             >
               {copied ? (
                 <>
@@ -142,7 +142,7 @@ export const HostScreen: React.FC<HostScreenProps> = ({
                 </>
               ) : (
                 <>
-                  <Copy className="w-3.5 h-3.5 text-[#ff3030]" />
+                  <Copy className="w-3.5 h-3.5 text-[#a4ff70]" />
                   <span>COPY CODE</span>
                 </>
               )}
@@ -150,7 +150,7 @@ export const HostScreen: React.FC<HostScreenProps> = ({
 
             <button
               onClick={onRegenerateSession}
-              className="px-4 py-2 text-xs font-mono font-bold bg-[#080808] hover:bg-[#141418] border border-[rgba(255,255,255,0.12)] hover:border-[#ff3030] text-[#a0a0a0] hover:text-[#f2f2f2] rounded-xs flex items-center gap-2 transition-all active:scale-95"
+              className="px-4 py-2 text-xs font-mono font-bold bg-[#080808] hover:bg-[#102419] border border-[rgba(255,255,255,0.12)] hover:border-[#a4ff70] text-[#a0a0a0] hover:text-[#efffe8] rounded-xs flex items-center gap-2 transition-all active:scale-95"
             >
               <RefreshCw className="w-3.5 h-3.5 text-[#a0a0a0]" />
               <span>REGENERATE</span>
@@ -162,12 +162,12 @@ export const HostScreen: React.FC<HostScreenProps> = ({
         <div className="text-xs font-mono tracking-wider">
           {!isExpired ? (
             <span className="text-[#a0a0a0]">
-              expires in <span className="text-[#ff3030] font-bold">{formatTimer(timeLeft)}</span>
+              expires in <span className="text-[#a4ff70] font-bold">{formatTimer(timeLeft)}</span>
             </span>
           ) : (
             <button
               onClick={onRegenerateSession}
-              className="px-4 py-2 bg-[#ff3030] hover:bg-[#e31e24] text-white font-mono font-bold text-xs rounded-xs tracking-wider uppercase animate-glow-pulse active:scale-95"
+              className="px-4 py-2 bg-[#a4ff70] hover:bg-[#e31e24] text-white font-mono font-bold text-xs rounded-xs tracking-wider uppercase animate-glow-pulse active:scale-95"
             >
               CREATE NEW SESSION
             </button>
@@ -178,7 +178,7 @@ export const HostScreen: React.FC<HostScreenProps> = ({
         <div className="pt-4 border-t border-[rgba(255,255,255,0.08)]">
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="text-xs text-[#a0a0a0] hover:text-[#f2f2f2] font-mono tracking-wider flex items-center gap-1.5 mx-auto transition-colors"
+            className="text-xs text-[#a0a0a0] hover:text-[#efffe8] font-mono tracking-wider flex items-center gap-1.5 mx-auto transition-colors"
           >
             <span>{showAdvanced ? '- ADVANCED' : '+ ADVANCED'}</span>
             {showAdvanced ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -188,27 +188,27 @@ export const HostScreen: React.FC<HostScreenProps> = ({
             <div className="mt-4 p-4 bg-[#080808] border border-[rgba(255,255,255,0.06)] rounded-xs grid grid-cols-2 sm:grid-cols-3 gap-3 text-left text-[11px] font-mono animate-fade-in-up">
               <div>
                 <span className="text-[#666666] block text-[9px] uppercase">Protocol</span>
-                <span className="text-[#f2f2f2]">WebRTC</span>
+                <span className="text-[#efffe8]">WebRTC</span>
               </div>
               <div>
                 <span className="text-[#666666] block text-[9px] uppercase">Network</span>
-                <span className="text-[#ff3030]">Direct P2P</span>
+                <span className="text-[#a4ff70]">Direct P2P</span>
               </div>
               <div>
                 <span className="text-[#666666] block text-[9px] uppercase">Channel</span>
-                <span className="text-[#f2f2f2]">RTCDataChannel</span>
+                <span className="text-[#efffe8]">RTCDataChannel</span>
               </div>
               <div>
                 <span className="text-[#666666] block text-[9px] uppercase">Encryption</span>
-                <span className="text-[#f2f2f2]">DTLS / SRTP</span>
+                <span className="text-[#efffe8]">DTLS / SRTP</span>
               </div>
               <div>
                 <span className="text-[#666666] block text-[9px] uppercase">Server</span>
-                <span className="text-[#f2f2f2]">Signaling Only</span>
+                <span className="text-[#efffe8]">Signaling Only</span>
               </div>
               <div>
                 <span className="text-[#666666] block text-[9px] uppercase">Storage</span>
-                <span className="text-[#f2f2f2]">Zero Server RAM</span>
+                <span className="text-[#efffe8]">Zero Server RAM</span>
               </div>
             </div>
           )}
@@ -217,7 +217,7 @@ export const HostScreen: React.FC<HostScreenProps> = ({
 
       {/* BOTTOM INFORMATION BLOCK */}
       <div className="p-4 bg-[#080808] border border-[rgba(255,255,255,0.06)] rounded-xs text-[11px] font-mono text-[#a0a0a0] text-center space-y-1">
-        <span className="text-[#ff3030] font-bold tracking-wider uppercase">ONE-TIME CODE</span>
+        <span className="text-[#a4ff70] font-bold tracking-wider uppercase">ONE-TIME CODE</span>
         <p className="text-[#666666] font-sans">
           This code is unique to this session. It becomes invalid when a peer connects or when the timer expires.
         </p>
