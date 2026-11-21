@@ -31,7 +31,7 @@ export const ConnectionPanel: React.FC<ConnectionPanelProps> = ({
     <details className="tech-panel group bg-[#09090b] border border-[#1c1c22] overflow-hidden">
       <summary className="flex items-center justify-between px-4 py-3 cursor-pointer list-none font-mono text-xs text-[#8a8a8a] hover:text-[#f2f2f2] transition-colors select-none [&::-webkit-details-marker]:hidden">
         <span className="tracking-[0.2em] uppercase">+ CONNECTION DETAILS</span>
-        <ChevronDown className="w-4 h-4 transition-transform duration-200 group-open:rotate-180 text-[#ff3030]" />
+        <ChevronDown className="w-4 h-4 transition-transform duration-200 group-open:rotate-180 text-[#8dff4f]" />
       </summary>
 
       <div className="px-4 pb-4 pt-1 grid grid-cols-2 sm:grid-cols-3 gap-2 font-mono text-[11px]">
