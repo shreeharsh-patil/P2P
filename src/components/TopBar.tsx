@@ -30,8 +30,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenSettings
 }) => {
   return (
-    <header className="w-full border-b border-[#2b6531]/40 bg-[#020903]/80 backdrop-blur-xl sticky top-0 z-40">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 h-[68px] flex items-center justify-between">
+    <header className="doom-topbar w-full sticky top-0 z-40">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 sm:h-[68px] flex items-center justify-between">
         {/* Brand */}
         <BrandLogo size="sm" />
 

@@ -31,3 +31,37 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 ::selection{background:#a3ff72;color:#051008}
 @media(max-width:767px){.doom-world-art{background-size:92vw auto;background-position:center 8px;opacity:.8;mask-image:linear-gradient(180deg,#000,transparent 68%)}.doom-world-vignette{background:linear-gradient(180deg,#02070308,#02070380 27%,#020703ef 57%,#020603)}.doom-orbit{left:50%;top:95px;width:76vw;height:76vw;opacity:.55}.doom-hero{min-height:450px;padding-top:50px;align-items:end;text-align:center;padding-bottom:22px}.doom-hero-content{margin:auto}.doom-hero-emblem{display:block;margin-bottom:12px}.doom-hero-emblem img{width:72px;height:72px;object-fit:contain;margin:auto;filter:drop-shadow(0 0 20px #78ff5988)}.doom-overline{font-size:9px;letter-spacing:.15em}.doom-title{font-size:clamp(58px,16vw,82px)}.doom-intro{font-size:15px}.doom-benefits{justify-content:center;gap:9px}.doom-actions{padding:18px}}
 @media(prefers-reduced-motion:reduce){.doom-orbit{animation:none!important}.doom-action-primary,.doom-action-secondary{transition:none!important}}
+
+/* Focused 2026 Doom landing refinement: transparent brand, glass header, simpler hero. */
+.doom-topbar {
+  background: rgba(3, 14, 7, .48);
+  border-bottom: 1px solid rgba(145, 248, 116, .16);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, .16);
+}
+.doom-brand-icon {
+  background: transparent;
+  border: 0;
+  filter: drop-shadow(0 0 9px rgba(109, 255, 72, .36));
+  image-rendering: auto;
+}
+.doom-brand { min-width: 0; }
+.doom-hero { min-height: 260px; padding-top: 34px; padding-bottom: 10px; }
+.doom-hero-content { padding: 14px 10px 18px; }
+.doom-title { margin: 9px 0 4px; }
+.doom-intro { max-width: 420px; margin: 10px auto 0; color: #d3e4d1; font-size: 15px; line-height: 1.5; }
+.doom-actions { margin-top: 4px; }
+@media (max-width: 767px) {
+  .doom-topbar { background: rgba(2, 10, 5, .52); }
+  .doom-hero { min-height: 318px; padding-top: 18px; padding-bottom: 12px; align-items: end; }
+  .doom-hero-content { padding: 8px 6px 14px; }
+  .doom-hero-emblem { display: block; margin-bottom: 7px; }
+  .doom-hero-emblem img { width: 62px; height: 62px; }
+  .doom-title { font-size: clamp(62px, 15.5vw, 82px); margin: 8px 0 4px; }
+  .doom-intro { font-size: 14px; line-height: 1.45; max-width: 310px; }
+  .doom-actions { margin-top: 0; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .doom-topbar { background: rgba(2, 10, 5, .91); }
+}

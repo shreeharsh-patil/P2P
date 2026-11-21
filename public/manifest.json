@@ -8,14 +8,14 @@
   "theme_color": "#0c2612",
   "icons": [
     {
-      "src": "/doom/doom-icon.svg",
+      "src": "/doom/doom-icon.svg?v=6",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/doom/doom-favicon.png",
-      "sizes": "64x64",
+      "src": "/doom/doom-favicon.png?v=6",
+      "sizes": "128x128",
       "type": "image/png",
       "purpose": "any"
     }
