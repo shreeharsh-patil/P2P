@@ -188,3 +188,212 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* Dr Doom cinematic artwork and landing UI.
+   Background art is intentionally kept behind the UI and out of the interaction layer. */
+.doom-world {
+  isolation: isolate;
+  background: #030903;
+}
+.doom-world-art,
+.doom-world-vignette {
+  position: absolute;
+  inset: 0;
+}
+.doom-world-art {
+  background-image: url('/doom/doom-stained-glass.webp');
+  background-position: center 22%;
+  background-size: cover;
+  background-repeat: no-repeat;
+  opacity: .95;
+  filter: saturate(.9) contrast(1.08);
+  transform: scale(1.015);
+}
+.doom-world-vignette {
+  background:
+    radial-gradient(ellipse 56% 46% at 50% 24%, transparent 5%, rgba(2,9,5,.48) 73%, rgba(1,5,3,.87) 100%),
+    linear-gradient(to bottom, rgba(1,6,3,.46), rgba(1,7,4,.58) 42%, rgba(1,6,3,.87) 78%, #010503);
+}
+.doom-orbit {
+  position: absolute;
+  top: 6%; left: 50%;
+  width: min(72vw, 510px);
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  border: 1px solid rgba(144,248,91,.14);
+  border-radius: 50%;
+  box-shadow: 0 0 55px rgba(46,182,42,.08), inset 0 0 32px rgba(46,182,42,.07);
+  animation: doomArcaneSpin 55s linear infinite;
+}
+.doom-orbit::before {
+  content: '';
+  position: absolute;
+  inset: 8%;
+  border: 1px dashed rgba(140,255,89,.23);
+  border-radius: 50%;
+}
+.doom-orbit span {
+  color: rgba(181,255,123,.8);
+  position: absolute;
+  font-size: clamp(13px,2vw,24px);
+  text-shadow: 0 0 20px rgba(147,255,80,.85);
+}
+.doom-orbit span:nth-child(1) { left: 50%; top: -12px; }
+.doom-orbit span:nth-child(2) { top: 48%; right: -11px; }
+.doom-orbit span:nth-child(3) { bottom: -9px; left: 49%; }
+.doom-orbit span:nth-child(4) { left: -10px; top: 48%; }
+@keyframes doomArcaneSpin {
+  from { transform: translateX(-50%) rotate(0); }
+  to { transform: translateX(-50%) rotate(360deg); }
+}
+.doom-hero {
+  min-height: 360px;
+  padding-top: clamp(46px,8vh,90px);
+  padding-bottom: 20px;
+  text-align: center;
+}
+.doom-hero-content {
+  max-width: 660px;
+  margin-inline: auto;
+  padding: 22px 25px 34px;
+  background: radial-gradient(ellipse at center, rgba(3,13,6,.64), rgba(3,13,6,.15) 62%, transparent 100%);
+}
+.doom-overline,
+.doom-actions-title {
+  color: #b9eb8b;
+  font-family: 'Geist Mono', 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: .23em;
+  text-align: center;
+}
+.doom-overline { margin-bottom: 18px; }
+.doom-hero-emblem {
+  width: 76px; height: 76px;
+  margin: 0 auto 14px;
+  padding: 8px;
+  display: grid; place-items: center;
+  border: 1px solid rgba(160,255,108,.35);
+  background: rgba(1,9,3,.64);
+  box-shadow: 0 0 40px rgba(69,255,79,.17), inset 0 0 26px rgba(59,238,60,.08);
+  clip-path: polygon(14% 0,86% 0,100% 14%,100% 86%,86% 100%,14% 100%,0 86%,0 14%);
+}
+.doom-hero-emblem img { width: 100%; height: 100%; object-fit: contain; }
+.doom-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(58px,11vw,105px);
+  font-weight: 900;
+  letter-spacing: -.035em;
+  line-height: 1;
+  text-shadow: 0 4px 25px rgba(0,0,0,.8);
+}
+.doom-title span { color: #b8ff84; text-shadow: 0 0 28px rgba(87,246,86,.26); }
+.doom-subtitle {
+  color: #adf38a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .24em;
+  margin-top: 16px;
+}
+.doom-intro {
+  max-width: 490px;
+  margin: 15px auto 0;
+  color: #e6f2e1;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.doom-benefits {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 10px 20px;
+  margin-top: 22px;
+  color: #d0eac5;
+  font-size: 12px;
+}
+.doom-benefits span { display: inline-flex; align-items: center; gap: 6px; }
+.doom-benefits svg { color: #9aef78; }
+.doom-actions {
+  padding: 24px;
+  border: 1px solid rgba(140,250,93,.24);
+  background: linear-gradient(140deg, rgba(3,16,7,.93), rgba(2,9,5,.88));
+  box-shadow: 0 20px 60px rgba(0,0,0,.46), 0 0 40px rgba(72,245,63,.08);
+  backdrop-filter: blur(16px);
+}
+.doom-actions-title { margin-bottom: 17px; }
+.doom-action-primary,
+.doom-action-secondary {
+  min-height: 88px; padding: 17px;
+  display: flex; align-items: center; gap: 12px;
+  text-align: left;
+  border: 1px solid rgba(147,250,105,.35);
+  transition: transform .2s ease, box-shadow .2s ease, background-color .2s ease;
+}
+.doom-action-primary {
+  background: linear-gradient(120deg, #a8e66c, #58b743);
+  color: #08200b;
+  box-shadow: 0 4px 32px rgba(111,245,85,.13);
+}
+.doom-action-secondary { color: #e9fce5; background: rgba(3,14,7,.72); }
+.doom-action-secondary.active { border-color: #a8fa7d; background: rgba(24,73,29,.72); }
+.doom-action-primary:hover,
+.doom-action-secondary:hover { transform: translateY(-2px); box-shadow: 0 8px 34px rgba(102,246,88,.19); }
+.doom-action-primary span,
+.doom-action-secondary span { flex: 1; min-width: 0; }
+.doom-action-primary strong,
+.doom-action-secondary strong { display: block; font-size: 11px; letter-spacing: .1em; }
+.doom-action-primary small,
+.doom-action-secondary small { display: block; opacity: .78; font-size: 10px; margin-top: 6px; }
+.doom-join-panel {
+  padding: 18px; margin-top: 16px;
+  border: 1px solid rgba(126,225,86,.22);
+  background: rgba(3,12,6,.92);
+}
+.doom-join-input {
+  padding: 12px;
+  border: 1px solid rgba(128,248,93,.27);
+  background: #07150b;
+  color: #ecffe6;
+  font-family: 'Geist Mono', monospace;
+  font-size: 24px;
+  letter-spacing: .17em;
+  text-align: center;
+  outline: none;
+}
+.doom-join-input:focus { border-color: #98f276; box-shadow: 0 0 0 3px rgba(113,244,76,.12); }
+.doom-icon-button,
+.doom-secondary-button,
+.doom-primary-button {
+  min-height: 44px; padding: 12px 15px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  transition: background-color .2s ease, border-color .2s ease;
+}
+.doom-icon-button,
+.doom-secondary-button { border: 1px solid rgba(144,240,100,.32); color: #e7fce1; background: #0a1b0e; }
+.doom-icon-button:hover,
+.doom-secondary-button:hover { border-color: #b3f68c; background: #183c1d; }
+.doom-primary-button { color: #061c0a; background: #a5ee78; border: 1px solid #c9ffa8; }
+.doom-primary-button:hover { background: #cbffa7; }
+.doom-primary-button:disabled { opacity: .45; cursor: not-allowed; }
+.tech-panel {
+  background: rgba(3,11,6,.94);
+  border-color: rgba(148,239,104,.19);
+  backdrop-filter: blur(13px);
+}
+@media (min-width: 900px) {
+  .doom-world-art { background-size: auto 115%; background-position: 50% 18%; }
+}
+@media (max-width: 600px) {
+  .doom-world-art { background-position: 50% 7%; background-size: cover; opacity: .9; }
+  .doom-world-vignette { background: linear-gradient(to bottom, rgba(1,6,3,.5), rgba(1,6,3,.78) 52%, #010503 95%); }
+  .doom-hero { padding-top: 35px; min-height: 330px; }
+  .doom-hero-content { padding: 14px 10px 24px; }
+  .doom-hero-emblem { width: 60px; height: 60px; }
+  .doom-actions { margin-inline: 16px; padding: 17px; }
+  .doom-benefits { gap: 9px 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .doom-orbit { animation: none; }
+}
