@@ -12,9 +12,7 @@ export const Footer: React.FC = () => {
               target="_blank"
               rel="noopener noreferrer"
               className="hover:opacity-70 transition-opacity"
-            >
-              Shreeharsh
-            </a>
+            >Dr Doom</a>
           </span>
 
           <span aria-hidden="true">/</span>

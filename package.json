@@ -1,7 +1,7 @@
 {
   "name": "shree-p2p",
   "version": "1.0.0",
-  "description": "Shree - Private. Direct. Simple. Production-grade P2P File & Text Transfer Platform",
+  "description": "Dr Doom - Private. Direct. Simple. Production-grade P2P File & Text Transfer Platform",
   "type": "module",
   "scripts": {
     "dev": "vite",
