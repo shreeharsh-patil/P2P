@@ -4,10 +4,12 @@
  * Cache-first for static icons/manifests with offline fallback.
  */
 
-const CACHE_NAME = 'shree-p2p-cache-v2';
+const CACHE_NAME = 'dr-doom-p2p-cache-v4';
 const STATIC_ASSETS = [
   '/manifest.json',
-  '/favicon.svg'
+  '/doom/doom-favicon.png',
+  '/doom/doom-icon.svg',
+  '/doom/doom-stained-glass.webp'
 ];
 
 self.addEventListener('install', (event) => {
