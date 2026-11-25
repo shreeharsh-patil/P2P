@@ -8,9 +8,9 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default: 'border-white/12 bg-white/[0.06] text-[var(--foreground)]',
-        pink: 'border-[#f27494]/30 bg-[#f27494]/12 text-[#f9a8be]',
-        coral: 'border-[#f39470]/30 bg-[#f39470]/12 text-[#f9bfa6]',
-        aqua: 'border-[#6be0eb]/30 bg-[#6be0eb]/12 text-[#8beaf2]',
+        pink: 'border-[#ff3030]/30 bg-[#ff3030]/12 text-[#ff8a8a]',
+        coral: 'border-[#e51b23]/30 bg-[#e51b23]/12 text-[#ff9999]',
+        aqua: 'border-[#ff7777]/30 bg-[#ff7777]/12 text-[#ff8585]',
         emerald: 'border-emerald-400/30 bg-emerald-500/12 text-emerald-300',
         amber: 'border-amber-400/30 bg-amber-500/12 text-amber-200',
         destructive: 'border-rose-400/30 bg-rose-500/12 text-rose-200',

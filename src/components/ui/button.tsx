@@ -9,7 +9,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'dusk-gradient-bg text-white shadow-[0_6px_22px_-6px_rgba(224,109,90,0.55),inset_0_1px_0_rgba(255,255,255,0.22)] border border-white/15',
+          'dusk-gradient-bg text-white shadow-[0_6px_22px_-6px_rgba(220,38,38,0.55),inset_0_1px_0_rgba(255,255,255,0.22)] border border-white/15',
         secondary:
           'bg-white/[0.06] text-[var(--foreground)] hover:bg-white/[0.11] border border-white/[0.10] hover:border-white/[0.18] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]',
         outline:
@@ -19,7 +19,7 @@ const buttonVariants = cva(
         destructive:
           'bg-rose-500/15 text-rose-200 border border-rose-400/30 hover:bg-rose-500/25 hover:border-rose-400/45',
         aqua:
-          'bg-[#6be0eb]/12 text-[#8beaf2] border border-[#6be0eb]/30 hover:bg-[#6be0eb]/20 hover:border-[#6be0eb]/45',
+          'bg-[#ff7777]/12 text-[#ff8585] border border-[#ff7777]/30 hover:bg-[#ff7777]/20 hover:border-[#ff7777]/45',
         emerald:
           'bg-emerald-500/15 text-emerald-200 border border-emerald-400/30 hover:bg-emerald-500/25 hover:border-emerald-400/45',
       },
