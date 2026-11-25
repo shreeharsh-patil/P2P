@@ -3,22 +3,11 @@ import React from 'react';
 export const Hero: React.FC = () => {
   return (
     <div className="text-center space-y-6 pt-10 pb-2 max-w-3xl mx-auto px-4 animate-fade-in-up">
-      {/* DropIt logo emblem */}
-      <div className="flex justify-center mb-2">
-        <div className="w-16 h-16 sm:w-20 sm:h-20 relative p-1 bg-[#09090b] border border-[rgba(255,255,255,0.08)] rounded-xs shadow-[0_0_30px_rgba(255,48,48,0.25)] animate-glow-pulse">
-          <img 
-            src="/favicon.svg" 
-            alt="DropIt logo emblem"
-            className="w-full h-full object-contain filter drop-shadow-[0_0_10px_rgba(255,48,48,0.6)]"
-          />
-        </div>
-      </div>
-
-      <h1 className="relative mx-auto block aspect-[3.68] w-full max-w-[460px] overflow-hidden mix-blend-screen">
+      <h1 className="mx-auto block w-full max-w-[460px]">
         <img
-          src="/dropit-logo-reference.png"
+          src="/dropit-logo.svg"
           alt="DropIt"
-          className="absolute left-0 top-0 aspect-square w-full max-w-none -translate-y-[51.44%] object-contain drop-shadow-[0_8px_28px_rgba(255,30,30,0.14)]"
+          className="h-auto w-full object-contain drop-shadow-[0_8px_28px_rgba(255,30,30,0.14)]"
         />
       </h1>
 
