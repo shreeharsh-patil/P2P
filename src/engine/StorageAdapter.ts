@@ -121,8 +121,9 @@ export class IndexedDBFallbackWriter implements StorageWriter {
     for (let i = 0; i < this.totalChunks; i++) {
       let chunk = this.memoryChunks.get(i);
       if (!chunk) {
-        chunk = await IDBStorage.getChunk(this.transferId, i) || new Uint8Array(0);
+        chunk = await IDBStorage.getChunk(this.transferId, i) ?? undefined;
       }
+      if (!chunk) throw new Error('A saved chunk is missing. Ask the sender to resend the file.');
       parts.push(chunk as BlobPart);
     }
 

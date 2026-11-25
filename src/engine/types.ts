@@ -36,6 +36,7 @@ export interface TransferItem extends TransferMeta {
   error?: string;
   verified?: boolean;
   downloadUrl?: string;
+  downloadBlob?: Blob;
   receivedChunksBitset?: Set<number>;
   startTime?: number;
   endTime?: number;

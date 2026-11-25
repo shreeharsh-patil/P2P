@@ -306,30 +306,15 @@ export const App: React.FC = () => {
   };
 
   // Transfer Engine Handlers
-  const offerEntriesWithConcurrency = async (
+  const offerEntries = (
     entries: { file: File; relativePath: string }[],
     label: string
   ) => {
     const transfer = transferRef.current;
     if (!transfer || entries.length === 0) return;
     const batchId = Math.random().toString(36).substring(2, 9);
-    const concurrency = Math.min(3, entries.length);
-    let cursor = 0;
-
-    const worker = async () => {
-      while (cursor < entries.length) {
-        const current = entries[cursor++];
-        try {
-          await transfer.offerFile(current.file, current.relativePath, batchId);
-        } catch (error) {
-          console.error('Failed to offer file', error);
-          showToast('error', `FAILED TO OFFER: ${current.file.name}`);
-        }
-      }
-    };
-
-    await Promise.all(Array.from({ length: concurrency }, () => worker()));
-    showToast('info', `OFFERING ${entries.length} ${label} TO PEER`);
+    showToast('info', `QUEUING ${entries.length} ${label}`);
+    void transfer.offerFiles(entries, batchId);
   };
 
   const handleOfferFiles = async (files: FileList | File[]) => {
@@ -337,11 +322,11 @@ export const App: React.FC = () => {
       file,
       relativePath: (file as any).webkitRelativePath || file.name
     }));
-    await offerEntriesWithConcurrency(entries, 'FILE(S)');
+    offerEntries(entries, 'FILE(S)');
   };
 
   const handleOfferScannedFiles = async (scannedFiles: { file: File; relativePath: string }[]) => {
-    await offerEntriesWithConcurrency(scannedFiles, 'ITEM(S)');
+    offerEntries(scannedFiles, 'ITEM(S)');
   };
 
   const handleAcceptOffer = (id: string) => {

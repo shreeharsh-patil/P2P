@@ -9,6 +9,8 @@ import { ResumeManager } from './ResumeManager';
 
 const ACCEPT_RETRY_INTERVAL_MS = 500;
 const ACCEPT_RETRY_WINDOW_MS = 45_000;
+const TRANSFER_RETRY_INTERVAL_MS = 5_000;
+const TRANSFER_RETRY_WINDOW_MS = 60_000;
 
 export interface TransferManagerCallbacks {
   onQueueUpdated?: (queue: TransferItem[]) => void;
@@ -31,6 +33,10 @@ export class TransferManager {
   private activeSenders: Set<string> = new Set();
   private pendingAccepts = new Map<string, { receivedIndex: number; deadline: number }>();
   private acceptRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private outgoingControls = new Map<string, { message: ControlMessage; deadline: number; retryAt: number }>();
+  private pendingSends = new Map<string, { index: number; deadline: number }>();
+  private receiveActivity = new Map<string, { lastProgressAt: number; retryAt: number }>();
+  private sessionGeneration = 0;
 
   // Leave room for the 36-byte framing header under common WebRTC message limits.
   private defaultChunkSize: number = 60 * 1024;
@@ -89,6 +95,7 @@ export class TransferManager {
   }
 
   public resetSession(): void {
+    this.sessionGeneration++;
     // A manual session leave must not permanently stop the speed timer or event listeners.
     for (const id of Array.from(this.queue.keys())) {
       void this.storageWriters.get(id)?.abort();
@@ -112,13 +119,28 @@ export class TransferManager {
     this.rtc.setEvents({
       onControlMessage: (msg) => this.handleControlMessage(msg),
       onFileChunk: (buffer) => this.handleIncomingChunk(buffer),
-      onChannelReady: () => this.flushPendingAccepts()
+      onChannelReady: () => {
+        this.flushPendingAccepts();
+        this.retryTransfers();
+      }
     });
   }
 
   /**
    * Sender API: Selects a file and initiates P2P upload.
    */
+  public async offerFiles(entries: { file: File; relativePath: string }[], batchId: string): Promise<void> {
+    const generation = this.sessionGeneration;
+    let cursor = 0;
+    const worker = async () => {
+      while (generation === this.sessionGeneration && cursor < entries.length) {
+        const { file, relativePath } = entries[cursor++];
+        await this.offerFile(file, relativePath, batchId);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(3, entries.length) }, worker));
+  }
+
   public async offerFile(file: File, relativePath?: string, batchId?: string): Promise<string> {
     const id = Math.random().toString(36).substring(2, 11);
     const chunkSize = this.customChunkSize
@@ -126,13 +148,7 @@ export class TransferManager {
       : (this.rtc.getOptimalChunkSize?.() ?? this.defaultChunkSize);
     const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
 
-    const chunkReader = new ChunkReader(file, chunkSize);
-    this.chunkReaders.set(id, chunkReader);
-
-    // Compute checksum progressively
-    const checksum = await IntegrityManager.calculateFileHash(file);
-
-    const item: TransferItem = {
+    const meta: TransferMeta = {
       id,
       name: file.name,
       relativePath: relativePath || file.name,
@@ -140,10 +156,12 @@ export class TransferManager {
       size: file.size,
       type: file.type || 'application/octet-stream',
       totalChunks,
-      chunkSize,
-      sha256: checksum,
+      chunkSize
+    };
+    const item: TransferItem = {
+      ...meta,
       direction: 'upload',
-      status: 'offering',
+      status: 'queued',
       file,
       progress: {
         bytesTransferred: 0,
@@ -159,29 +177,20 @@ export class TransferManager {
       this.callbacks.onQueueUpdated(this.getQueue());
     }
 
-    // Send FILE_OFFER over RTC control channel
-    if (!this.rtc.sendControlMessage({
-      type: 'FILE_OFFER',
-      transferId: id,
-      meta: {
-        id,
-        name: file.name,
-        relativePath: relativePath || file.name,
-        batchId,
-        size: file.size,
-        type: file.type || 'application/octet-stream',
-        totalChunks,
-        chunkSize,
-        sha256: checksum
+    try {
+      meta.sha256 = await IntegrityManager.calculateFileHash(file);
+    } catch (error) {
+      if (this.queue.get(id) === item && item.status === 'queued') {
+        console.error('Could not read selected file', error);
+        this.failTransfer(id, `Could not read ${item.name}. Select the file again to retry.`);
       }
-    })) {
-      this.updateQueueItem(id, {
-        status: 'error',
-        error: 'Peer connection is not ready. Please reconnect and try again.'
-      });
-      this.cleanup(id);
+      return id;
     }
 
+    if (this.queue.get(id) !== item || item.status !== 'queued') return id;
+    this.chunkReaders.set(id, new ChunkReader(file, chunkSize));
+    this.updateQueueItem(id, { status: 'offering', sha256: meta.sha256 });
+    this.sendUntilAnswered(id, { type: 'FILE_OFFER', transferId: id, meta });
     return id;
   }
 
@@ -266,7 +275,7 @@ export class TransferManager {
     } catch (error) {
       if (isPending()) {
         const message = error instanceof Error ? error.message : 'Unable to prepare the file download.';
-        this.failPendingAccept(transferId, message);
+        this.failTransfer(transferId, message);
       }
       return;
     } finally {
@@ -290,9 +299,10 @@ export class TransferManager {
       });
       if (canSend) {
         this.pendingAccepts.delete(transferId);
+        this.recordReceiveProgress(transferId);
         this.updateQueueItem(transferId, { status: 'transferring', startTime: Date.now() });
       } else if (Date.now() >= pending.deadline) {
-        this.failPendingAccept(transferId, 'The peer connection did not recover. Ask the sender to resend the file after reconnecting.');
+        this.failTransfer(transferId, 'The peer connection did not recover. Ask the sender to resend the file.');
       }
     }
 
@@ -302,11 +312,77 @@ export class TransferManager {
     }
   }
 
-  private failPendingAccept(transferId: string, message: string): void {
+  private failTransfer(transferId: string, message: string): void {
     void this.storageWriters.get(transferId)?.abort().catch(console.error);
     this.cleanup(transferId);
     this.updateQueueItem(transferId, { status: 'error', error: message });
     this.callbacks.onError?.(transferId, message);
+  }
+
+  private sendUntilAnswered(transferId: string, message: ControlMessage): void {
+    const now = Date.now();
+    const pending = { message, deadline: now + TRANSFER_RETRY_WINDOW_MS, retryAt: now };
+    this.outgoingControls.set(transferId, pending);
+    this.retryOutgoingControl(transferId, pending, now);
+  }
+
+  private retryOutgoingControl(
+    id: string,
+    pending: { message: ControlMessage; deadline: number; retryAt: number },
+    now: number
+  ): void {
+    if (this.queue.get(id)?.status === 'paused') return;
+
+    if (now >= pending.deadline) {
+      const error = pending.message.type === 'FILE_OFFER'
+        ? 'The peer did not accept this file. Send it again after reconnecting.'
+        : 'The peer did not confirm receipt. Check the file on the receiving device.';
+      this.failTransfer(id, error);
+    } else if (now >= pending.retryAt && this.rtc.areChannelsOpen()) {
+      const sent = this.rtc.sendControlMessage(pending.message);
+      pending.retryAt = now + (sent ? TRANSFER_RETRY_INTERVAL_MS : ACCEPT_RETRY_INTERVAL_MS);
+    }
+  }
+
+  private queueSend(id: string, index: number): void {
+    this.outgoingControls.delete(id);
+    this.pendingSends.set(id, { index, deadline: Date.now() + TRANSFER_RETRY_WINDOW_MS });
+    this.startPendingSend(id);
+  }
+
+  private startPendingSend(id: string): void {
+    const pending = this.pendingSends.get(id);
+    if (!pending || this.activeSenders.has(id) || this.queue.get(id)?.status !== 'transferring') return;
+
+    if (Date.now() >= pending.deadline) {
+      this.failTransfer(id, 'The file channel did not recover. Send the file again after reconnecting.');
+    } else if (this.rtc.areChannelsOpen()) {
+      this.pendingSends.delete(id);
+      void this.startSendingChunks(id, pending.index, pending.deadline);
+    }
+  }
+
+  private recordReceiveProgress(id: string): void {
+    const now = Date.now();
+    this.receiveActivity.set(id, { lastProgressAt: now, retryAt: now + TRANSFER_RETRY_INTERVAL_MS });
+  }
+
+  private retryTransfers(): void {
+    const now = Date.now();
+    for (const [id, pending] of this.outgoingControls) this.retryOutgoingControl(id, pending, now);
+    for (const id of this.pendingSends.keys()) this.startPendingSend(id);
+
+    for (const [id, activity] of this.receiveActivity) {
+      if (this.queue.get(id)?.status !== 'transferring' || this.writeQueues.has(id)) continue;
+      if (now - activity.lastProgressAt >= TRANSFER_RETRY_WINDOW_MS) {
+        this.failTransfer(id, 'The download stopped before all bytes arrived. Ask the sender to resend the file.');
+        this.rtc.sendControlMessage({ type: 'CANCEL_TRANSFER', transferId: id });
+      } else if (now >= activity.retryAt && this.rtc.areChannelsOpen()) {
+        const receivedIndex = this.resumeManagers.get(id)?.getFirstMissingChunkIndex();
+        this.rtc.sendControlMessage({ type: 'RESUME_REQ', transferId: id, receivedIndex });
+        activity.retryAt = now + TRANSFER_RETRY_INTERVAL_MS;
+      }
+    }
   }
 
   /**
@@ -338,10 +414,13 @@ export class TransferManager {
     const item = this.queue.get(transferId);
     if (item && item.status === 'paused') {
       this.updateQueueItem(transferId, { status: 'transferring' });
-      this.rtc.sendControlMessage({ type: 'RESUME_TRANSFER', transferId });
+      const receivedIndex = this.resumeManagers.get(transferId)?.getFirstMissingChunkIndex();
+      this.rtc.sendControlMessage({ type: 'RESUME_TRANSFER', transferId, receivedIndex });
 
       if (item.direction === 'upload') {
-        this.startSendingChunks(transferId, item.progress.chunksTransferred);
+        this.queueSend(transferId, item.progress.chunksTransferred);
+      } else {
+        this.recordReceiveProgress(transferId);
       }
     }
   }
@@ -364,7 +443,15 @@ export class TransferManager {
 
     switch (msg.type) {
       case 'FILE_OFFER': {
-        if (!msg.meta || this.queue.has(msg.transferId)) return;
+        if (!msg.meta) return;
+        const existing = this.queue.get(msg.transferId);
+        if (existing) {
+          if (existing.direction === 'download' && existing.status === 'transferring') {
+            const receivedIndex = this.resumeManagers.get(msg.transferId)?.getFirstMissingChunkIndex();
+            this.rtc.sendControlMessage({ type: 'FILE_ACCEPT', transferId: msg.transferId, receivedIndex });
+          }
+          return;
+        }
         const item: TransferItem = {
           ...msg.meta,
           direction: 'download',
@@ -387,13 +474,17 @@ export class TransferManager {
         break;
       }
 
-      case 'FILE_ACCEPT': {
+      case 'FILE_ACCEPT':
+      case 'RESUME_REQ': {
         const item = this.queue.get(msg.transferId);
-        if (item && item.direction === 'upload' && item.status === 'offering') {
-          this.updateQueueItem(msg.transferId, { status: 'transferring', startTime: Date.now() });
-          const startChunkIndex = msg.receivedIndex || 0;
-          this.startSendingChunks(msg.transferId, startChunkIndex);
-        }
+        if (item?.direction !== 'upload') break;
+        const isNewAcceptance = item.status === 'offering';
+        const canResend = msg.type === 'RESUME_REQ' && item.status === 'transferring';
+        const index = msg.receivedIndex ?? 0;
+        if ((!isNewAcceptance && !canResend) || !Number.isInteger(index) || index < 0 || index > item.totalChunks) break;
+
+        if (isNewAcceptance) this.updateQueueItem(msg.transferId, { status: 'transferring', startTime: Date.now() });
+        this.queueSend(msg.transferId, index);
         break;
       }
 
@@ -404,16 +495,21 @@ export class TransferManager {
       }
 
       case 'PAUSE_TRANSFER': {
-        this.updateQueueItem(msg.transferId, { status: 'paused' });
+        if (this.queue.get(msg.transferId)?.status === 'transferring') {
+          this.updateQueueItem(msg.transferId, { status: 'paused' });
+        }
         break;
       }
 
       case 'RESUME_TRANSFER': {
         const item = this.queue.get(msg.transferId);
-        if (item) {
+        if (item?.status === 'paused') {
           this.updateQueueItem(msg.transferId, { status: 'transferring' });
           if (item.direction === 'upload') {
-            this.startSendingChunks(msg.transferId, item.progress.chunksTransferred);
+            const index = msg.receivedIndex ?? item.progress.chunksTransferred;
+            if (Number.isInteger(index) && index >= 0 && index <= item.totalChunks) this.queueSend(msg.transferId, index);
+          } else {
+            this.recordReceiveProgress(msg.transferId);
           }
         }
         break;
@@ -426,12 +522,24 @@ export class TransferManager {
         break;
       }
 
+      case 'TRANSFER_COMPLETE': {
+        const item = this.queue.get(msg.transferId);
+        if (item?.direction === 'download' && item.status === 'completed') {
+          this.rtc.sendControlMessage({ type: 'VERIFICATION_RESULT', transferId: msg.transferId, verified: item.verified });
+        }
+        break;
+      }
+
       case 'VERIFICATION_RESULT': {
         const item = this.queue.get(msg.transferId);
-        if (item) {
+        if (item?.direction === 'upload' && (item.status === 'transferring' || item.status === 'paused')) {
+          if (!msg.verified) {
+            this.failTransfer(msg.transferId, 'The received file did not pass its integrity check. Send the file again.');
+            break;
+          }
           this.updateQueueItem(msg.transferId, {
             status: 'completed',
-            verified: msg.verified,
+            verified: true,
             endTime: Date.now()
           });
           if (this.callbacks.onTransferCompleted) {
@@ -445,50 +553,44 @@ export class TransferManager {
   }
 
   /**
-   * Sender: Chunk Loop with Backpressure Control and Read-Ahead Prefetching
+   * Sender: Chunk loop with backpressure and reconnect handling.
    */
-  private async startSendingChunks(transferId: string, startIndex: number) {
-    if (this.activeSenders.has(transferId)) return;
+  private async startSendingChunks(transferId: string, startIndex: number, deadline: number) {
     const item = this.queue.get(transferId);
     const chunkReader = this.chunkReaders.get(transferId);
-    if (!item || !chunkReader || !this.rtc.areChannelsOpen()) return;
+    if (!item || !chunkReader) return;
 
     this.activeSenders.add(transferId);
+    const canContinue = () => this.queue.get(transferId) === item &&
+      item.status === 'transferring' && !this.pendingSends.has(transferId);
 
     try {
-      if (this.rtc.fileChannel && !this.backpressureControllers.has(transferId)) {
-        const highWater = Math.max(4 * 1024 * 1024, item.chunkSize * 16);
-        const lowWater = Math.max(1 * 1024 * 1024, item.chunkSize * 4);
-        this.backpressureControllers.set(
-          transferId,
-          new BackpressureController(this.rtc.fileChannel, highWater, lowWater)
-        );
-      }
-
-      const backpressure = this.backpressureControllers.get(transferId);
       const totalChunks = chunkReader.getTotalChunks();
-      let nextChunkPromise = startIndex < totalChunks ? chunkReader.readChunk(startIndex) : null;
+      let channel: RTCDataChannel | null = null;
 
       for (let index = startIndex; index < totalChunks; index++) {
-        const currentItem = this.queue.get(transferId);
-        if (!currentItem || currentItem.status !== 'transferring') {
-          break;
-        }
+        if (!canContinue()) return;
+        const chunk = await chunkReader.readChunk(index);
+        if (!canContinue()) return;
 
-        // Backpressure Check if WebRTC DataChannel is active
-        if (!this.rtc.isWebSocketRelayMode && backpressure) {
-          await backpressure.waitIfBuffered();
-        } else if (this.rtc.isWebSocketRelayMode) {
-          while ((this.rtc.getRelayBufferedAmount?.() ?? 0) > 1024 * 1024) {
+        if (channel !== this.rtc.fileChannel) {
+          this.backpressureControllers.get(transferId)?.destroy();
+          this.backpressureControllers.delete(transferId);
+          channel = this.rtc.fileChannel;
+          if (channel) this.backpressureControllers.set(transferId, new BackpressureController(channel));
+        }
+        if (this.rtc.isWebSocketRelayMode) {
+          while (canContinue() && this.rtc.areChannelsOpen() &&
+                 (this.rtc.getRelayBufferedAmount?.() ?? 0) > 1024 * 1024) {
             await new Promise((r) => setTimeout(r, 15));
           }
           if (index % 4 === 3) {
             await new Promise((r) => setTimeout(r, 0));
           }
+        } else {
+          await this.backpressureControllers.get(transferId)?.waitIfBuffered();
         }
-
-        const chunk = await nextChunkPromise!;
-        nextChunkPromise = index + 1 < totalChunks ? chunkReader.readChunk(index + 1) : null;
+        if (!canContinue()) return;
 
         const packetBuffer = TransferProtocol.encodePacket(
           transferId,
@@ -497,10 +599,12 @@ export class TransferManager {
           chunk.buffer
         );
 
-        if (!this.rtc.sendFileChunk(packetBuffer)) {
-          throw new Error('File channel is unavailable. Please wait for the peer connection to recover.');
+        if (!this.rtc.areChannelsOpen() || !this.rtc.sendFileChunk(packetBuffer)) {
+          this.pendingSends.set(transferId, { index, deadline });
+          return;
         }
 
+        deadline = Date.now() + TRANSFER_RETRY_WINDOW_MS;
         const bytesTransferred = Number(chunk.offset) + chunk.length;
         const percent = item.size > 0
           ? Math.min(100, Math.round((bytesTransferred / item.size) * 100))
@@ -508,17 +612,25 @@ export class TransferManager {
 
         this.updateQueueItem(transferId, {
           progress: {
-            ...currentItem.progress,
+            ...item.progress,
             bytesTransferred,
             chunksTransferred: index + 1,
             percent
           }
         }, false);
       }
-    } catch (e: any) {
-      console.error(`Error sending chunks for ${transferId}`, e);
-      this.updateQueueItem(transferId, { status: 'error', error: e.message });
+      if (canContinue()) {
+        this.sendUntilAnswered(transferId, { type: 'TRANSFER_COMPLETE', transferId });
+      }
+    } catch (error) {
+      if (this.queue.get(transferId) === item && (item.status === 'transferring' || item.status === 'paused')) {
+        console.error(`Error sending chunks for ${transferId}`, error);
+        this.failTransfer(transferId, `Could not send ${item.name}. Select the file again to retry.`);
+        this.rtc.sendControlMessage({ type: 'CANCEL_TRANSFER', transferId });
+      }
     } finally {
+      this.backpressureControllers.get(transferId)?.destroy();
+      this.backpressureControllers.delete(transferId);
       this.activeSenders.delete(transferId);
     }
   }
@@ -539,15 +651,17 @@ export class TransferManager {
     const prevQueue = this.writeQueues.get(transferId) ?? Promise.resolve();
     const nextQueue = prevQueue
       .then(() => this.processIncomingPacket(packet))
-      .catch((e: any) => {
+      .catch((e: unknown) => {
         console.error('Error handling incoming file chunk', e);
-        if (this.queue.has(transferId)) {
+        const status = this.queue.get(transferId)?.status;
+        if (status === 'transferring' || status === 'paused' || status === 'verifying') {
           const message = e instanceof Error ? e.message : 'Unable to write incoming file data.';
-          this.updateQueueItem(transferId, { status: 'error', error: message });
-          this.callbacks.onError?.(transferId, message);
-          void this.storageWriters.get(transferId)?.abort();
-          this.cleanup(transferId);
+          this.failTransfer(transferId, message);
+          this.rtc.sendControlMessage({ type: 'CANCEL_TRANSFER', transferId });
         }
+      })
+      .finally(() => {
+        if (this.writeQueues.get(transferId) === nextQueue) this.writeQueues.delete(transferId);
       });
     this.writeQueues.set(transferId, nextQueue);
   }
@@ -558,14 +672,21 @@ export class TransferManager {
     const writer = this.storageWriters.get(transferId);
     const resumeMgr = this.resumeManagers.get(transferId);
 
-    if (!item || !writer || !resumeMgr || item.status !== 'transferring') return;
+    if (!item || !writer || !resumeMgr || (item.status !== 'transferring' && item.status !== 'paused')) return;
+
+    const expectedOffset = BigInt(chunkIndex) * BigInt(item.chunkSize);
+    const expectedLength = Math.min(item.chunkSize, item.size - Number(expectedOffset));
+    if (chunkIndex >= item.totalChunks || offset !== expectedOffset || payload.byteLength !== expectedLength) return;
 
     const alreadyHad = resumeMgr.hasChunk(chunkIndex);
     if (!alreadyHad) {
       await writer.writeChunk(chunkIndex, offset, payload);
+      if (this.storageWriters.get(transferId) !== writer) return;
       await resumeMgr.markChunkReceived(chunkIndex);
+      if (this.storageWriters.get(transferId) !== writer) return;
       const nextBytes = Math.min(item.size, (this.receivedBytes.get(transferId) || 0) + payload.byteLength);
       this.receivedBytes.set(transferId, nextBytes);
+      this.recordReceiveProgress(transferId);
     }
 
     const bytesTransferred = this.receivedBytes.get(transferId) || 0;
@@ -591,20 +712,32 @@ export class TransferManager {
       let verified = false;
 
       if (blobOrResult instanceof Blob) {
-        downloadUrl = URL.createObjectURL(blobOrResult);
         const computedHash = await IntegrityManager.calculateFileHash(
           new File([blobOrResult], item.name, { type: item.type })
         );
-        verified = item.sha256 ? IntegrityManager.verifyHash(computedHash, item.sha256) : true;
+        verified = blobOrResult.size === item.size && (!item.sha256 || IntegrityManager.verifyHash(computedHash, item.sha256));
       } else {
         // Direct FS file written directly to user disk
         verified = true;
       }
+      if (this.storageWriters.get(transferId) !== writer) return;
+
+      if (!verified) {
+        this.rtc.sendControlMessage({ type: 'VERIFICATION_RESULT', transferId, verified: false });
+        await resumeMgr.clear();
+        if (this.storageWriters.get(transferId) === writer) {
+          this.failTransfer(transferId, 'The received file is incomplete or damaged. Ask the sender to resend it.');
+        }
+        return;
+      }
+      const downloadBlob = blobOrResult instanceof Blob ? blobOrResult : undefined;
+      if (downloadBlob) downloadUrl = URL.createObjectURL(downloadBlob);
 
       this.updateQueueItem(transferId, {
         status: 'completed',
         verified,
         downloadUrl: downloadUrl || undefined,
+        downloadBlob,
         endTime: Date.now()
       });
 
@@ -619,8 +752,11 @@ export class TransferManager {
         this.callbacks.onTransferCompleted(this.queue.get(transferId)!, downloadUrl);
       }
 
-      await resumeMgr.clear();
-      this.cleanup(transferId);
+      try {
+        await resumeMgr.clear();
+      } finally {
+        if (this.storageWriters.get(transferId) === writer) this.cleanup(transferId);
+      }
     }
   }
 
@@ -629,6 +765,7 @@ export class TransferManager {
    */
   private startSpeedCalculation() {
     this.speedTimer = setInterval(() => {
+      this.retryTransfers();
       const now = Date.now();
 
       this.queue.forEach((item, id) => {
@@ -659,6 +796,9 @@ export class TransferManager {
   }
 
   private cleanup(transferId: string) {
+    this.outgoingControls.delete(transferId);
+    this.pendingSends.delete(transferId);
+    this.receiveActivity.delete(transferId);
     this.pendingAccepts.delete(transferId);
     if (this.pendingAccepts.size === 0 && this.acceptRetryTimer !== null) {
       clearTimeout(this.acceptRetryTimer);
@@ -672,6 +812,5 @@ export class TransferManager {
     this.lastBytesTransferred.delete(transferId);
     this.writeQueues.delete(transferId);
     this.receivedBytes.delete(transferId);
-    this.activeSenders.delete(transferId);
   }
 }

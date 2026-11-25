@@ -89,6 +89,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
   const folderInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [dropWarning, setDropWarning] = useState('');
   const [previewItem, setPreviewItem] = useState<TransferItem | null>(null);
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [queueQuery, setQueueQuery] = useState('');
@@ -134,26 +135,38 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
     dragCounter.current = 0;
     setIsDragOver(false);
     if (!canTransfer) return;
+    setDropWarning('');
 
+    // The browser may clear the drag payload after this event returns.
+    const droppedFiles = Array.from(e.dataTransfer.files);
     if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
-      const scanned = await scanDataTransferItems(e.dataTransfer.items);
-      if (scanned.length > 0) {
+      const { files, unreadablePaths } = await scanDataTransferItems(e.dataTransfer.items);
+      if (unreadablePaths.length > 0) {
+        const names = unreadablePaths.slice(0, 3).join(', ');
+        const remaining = unreadablePaths.length - 3;
+        setDropWarning(`Could not read ${names}${remaining > 0 ? ` and ${remaining} more` : ''}. Select those items again to retry.`);
+      }
+      if (files.length > 0) {
         if (onOfferScannedFiles) {
-          onOfferScannedFiles(scanned);
+          onOfferScannedFiles(files);
         } else {
-          onOfferFiles(scanned.map((s) => s.file));
+          onOfferFiles(files.map((s) => s.file));
         }
         return;
       }
+      if (unreadablePaths.length > 0) return;
     }
 
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      onOfferFiles(e.dataTransfer.files);
+    if (droppedFiles.length > 0) {
+      onOfferFiles(droppedFiles);
+    } else {
+      setDropWarning('No readable files were found. Try selecting files or a folder.');
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
+      setDropWarning('');
       onOfferFiles(e.target.files);
     }
     e.target.value = '';
@@ -161,6 +174,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
 
   const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
+      setDropWarning('');
       const scanned = extractFromFolderInput(e.target.files);
       if (onOfferScannedFiles) {
         onOfferScannedFiles(scanned);
@@ -393,6 +407,12 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
           </div>
         </div>
       </div>
+
+      {dropWarning && (
+        <p role="status" className="break-words rounded-md border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+          {dropWarning}
+        </p>
+      )}
 
       {/* TRANSFERS & BATCH CONTROLS */}
       <div className="space-y-4 font-mono">
@@ -732,10 +752,11 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
       </div>
 
       {/* File Preview Modal */}
-      {previewItem && (
-        <Suspense fallback={null}>
+      {previewItem?.downloadUrl && (
+        <Suspense fallback={<p role="status" className="text-sm text-[#a0a0a0]">Loading preview…</p>}>
           <FilePreviewModal
-            item={previewItem}
+            key={previewItem.id}
+            item={{ ...previewItem, downloadUrl: previewItem.downloadUrl }}
             onClose={() => setPreviewItem(null)}
           />
         </Suspense>
