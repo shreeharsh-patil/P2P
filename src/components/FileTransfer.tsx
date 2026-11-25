@@ -222,7 +222,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
     const active = queue.filter((i) => i.status === 'transferring').length;
     const paused = queue.filter((i) => i.status === 'paused').length;
     const incomingOffers = queue.filter((i) => i.status === 'offering' && i.direction === 'download').length;
-    const pendingOffers = queue.filter((i) => i.status === 'offering').length;
+    const pendingOffers = queue.filter((i) => i.status === 'offering' || i.status === 'queued').length;
 
     const totalBytes = queue.reduce((acc, i) => acc + i.size, 0);
     const transferredBytes = queue.reduce((acc, i) => acc + i.progress.bytesTransferred, 0);
@@ -645,8 +645,8 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
                         </div>
                       )}
 
-                      {/* Active transfer controls */}
-                      {(item.status === 'transferring' || item.status === 'paused') && (
+                      {/* Queued and active transfer controls */}
+                      {(item.status === 'queued' || item.status === 'transferring' || item.status === 'paused') && (
                         <div className="flex items-center gap-1">
                           {item.status === 'transferring' ? (
                             <button
@@ -656,7 +656,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
                             >
                               <Pause className="w-4 h-4" />
                             </button>
-                          ) : (
+                          ) : item.status === 'paused' && (
                             <button
                               onClick={() => onResumeTransfer(item.id)}
                               className="p-1.5 text-[#ff2b2b] hover:bg-[#141418] rounded-sm transition-colors"
@@ -704,7 +704,11 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
 
                   {/* Status row */}
                   <div className="flex items-center justify-between gap-3 pt-0.5">
-                    <StatusIndicator status={statusKindFor(item)} size="sm" />
+                    <StatusIndicator
+                      status={statusKindFor(item)}
+                      label={item.status === 'queued' ? 'Waiting to start' : undefined}
+                      size="sm"
+                    />
 
                     {item.status === 'completed' && item.verified && (
                       <span className="text-[10px] font-mono text-emerald-400/80 flex items-center gap-1">

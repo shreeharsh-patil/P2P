@@ -7,6 +7,9 @@ import { StorageAdapter, StorageWriter } from './StorageAdapter';
 import { IntegrityManager } from './IntegrityManager';
 import { ResumeManager } from './ResumeManager';
 
+const ACCEPT_RETRY_INTERVAL_MS = 500;
+const ACCEPT_RETRY_WINDOW_MS = 45_000;
+
 export interface TransferManagerCallbacks {
   onQueueUpdated?: (queue: TransferItem[]) => void;
   onTransferProgress?: (item: TransferItem) => void;
@@ -26,6 +29,8 @@ export class TransferManager {
   private writeQueues: Map<string, Promise<void>> = new Map();
   private receivedBytes: Map<string, number> = new Map();
   private activeSenders: Set<string> = new Set();
+  private pendingAccepts = new Map<string, { receivedIndex: number; deadline: number }>();
+  private acceptRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Leave room for the 36-byte framing header under common WebRTC message limits.
   private defaultChunkSize: number = 60 * 1024;
@@ -106,7 +111,8 @@ export class TransferManager {
   private setupListeners() {
     this.rtc.setEvents({
       onControlMessage: (msg) => this.handleControlMessage(msg),
-      onFileChunk: (buffer) => this.handleIncomingChunk(buffer)
+      onFileChunk: (buffer) => this.handleIncomingChunk(buffer),
+      onChannelReady: () => this.flushPendingAccepts()
     });
   }
 
@@ -225,13 +231,16 @@ export class TransferManager {
    */
   public async acceptOffer(transferId: string, preferDirectSave: boolean = false): Promise<void> {
     const item = this.queue.get(transferId);
-    if (!item) return;
+    if (item?.direction !== 'download' || item.status !== 'offering') return;
+
+    this.updateQueueItem(transferId, { status: 'queued' });
+    const isPending = () => {
+      const current = this.queue.get(transferId);
+      return current === item && current.status === 'queued';
+    };
     let writer: StorageWriter | undefined;
 
     try {
-      this.updateQueueItem(transferId, { status: 'transferring', startTime: Date.now() });
-
-      // Initialize Storage Writer (Direct FS, OPFS, or IDB)
       const storage = await StorageAdapter.createWriter(
         transferId,
         item.name,
@@ -240,30 +249,64 @@ export class TransferManager {
         preferDirectSave
       );
       writer = storage.writer;
-      this.storageWriters.set(transferId, writer);
+      if (!isPending()) return;
 
-      // Initialize Resume Manager
       const resumeMgr = new ResumeManager(transferId, item.totalChunks);
       await resumeMgr.initFromStorage();
+      if (!isPending()) return;
+
+      this.storageWriters.set(transferId, writer);
+      writer = undefined;
       this.resumeManagers.set(transferId, resumeMgr);
-
-      const startChunkIndex = resumeMgr.getFirstMissingChunkIndex();
       this.receivedBytes.set(transferId, resumeMgr.getReceivedCount() * item.chunkSize);
-
-      // Send FILE_ACCEPT back to sender
-      if (!this.rtc.sendControlMessage({
-        type: 'FILE_ACCEPT',
-        transferId,
-        receivedIndex: startChunkIndex
-      })) {
-        throw new Error('Peer connection is not ready. Please try accepting the file again.');
-      }
+      this.pendingAccepts.set(transferId, {
+        receivedIndex: resumeMgr.getFirstMissingChunkIndex(),
+        deadline: Date.now() + ACCEPT_RETRY_WINDOW_MS
+      });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to prepare the file download.';
-      await writer?.abort();
-      this.updateQueueItem(transferId, { status: 'error', error: message });
-      this.callbacks.onError?.(transferId, message);
+      if (isPending()) {
+        const message = error instanceof Error ? error.message : 'Unable to prepare the file download.';
+        this.failPendingAccept(transferId, message);
+      }
+      return;
+    } finally {
+      // The session may have ended while the writer was opening.
+      void writer?.abort().catch(console.error);
     }
+
+    if (this.acceptRetryTimer === null) this.flushPendingAccepts();
+  }
+
+  private flushPendingAccepts(): void {
+    if (this.acceptRetryTimer !== null) {
+      clearTimeout(this.acceptRetryTimer);
+      this.acceptRetryTimer = null;
+    }
+
+    let canSend = this.pendingAccepts.size > 0 && this.rtc.areChannelsOpen();
+    for (const [transferId, pending] of this.pendingAccepts) {
+      canSend = canSend && this.rtc.sendControlMessage({
+        type: 'FILE_ACCEPT', transferId, receivedIndex: pending.receivedIndex
+      });
+      if (canSend) {
+        this.pendingAccepts.delete(transferId);
+        this.updateQueueItem(transferId, { status: 'transferring', startTime: Date.now() });
+      } else if (Date.now() >= pending.deadline) {
+        this.failPendingAccept(transferId, 'The peer connection did not recover. Ask the sender to resend the file after reconnecting.');
+      }
+    }
+
+    // A relay socket can open before the session is restored and able to send.
+    if (this.pendingAccepts.size > 0) {
+      this.acceptRetryTimer = setTimeout(() => this.flushPendingAccepts(), ACCEPT_RETRY_INTERVAL_MS);
+    }
+  }
+
+  private failPendingAccept(transferId: string, message: string): void {
+    void this.storageWriters.get(transferId)?.abort().catch(console.error);
+    this.cleanup(transferId);
+    this.updateQueueItem(transferId, { status: 'error', error: message });
+    this.callbacks.onError?.(transferId, message);
   }
 
   /**
@@ -271,7 +314,7 @@ export class TransferManager {
    */
   public rejectOffer(transferId: string): void {
     const item = this.queue.get(transferId);
-    if (item) {
+    if (item?.direction === 'download' && item.status === 'offering') {
       this.updateQueueItem(transferId, { status: 'cancelled' });
       this.rtc.sendControlMessage({
         type: 'FILE_REJECT',
@@ -321,7 +364,7 @@ export class TransferManager {
 
     switch (msg.type) {
       case 'FILE_OFFER': {
-        if (!msg.meta) return;
+        if (!msg.meta || this.queue.has(msg.transferId)) return;
         const item: TransferItem = {
           ...msg.meta,
           direction: 'download',
@@ -616,6 +659,11 @@ export class TransferManager {
   }
 
   private cleanup(transferId: string) {
+    this.pendingAccepts.delete(transferId);
+    if (this.pendingAccepts.size === 0 && this.acceptRetryTimer !== null) {
+      clearTimeout(this.acceptRetryTimer);
+      this.acceptRetryTimer = null;
+    }
     this.backpressureControllers.get(transferId)?.destroy();
     this.chunkReaders.delete(transferId);
     this.storageWriters.delete(transferId);
