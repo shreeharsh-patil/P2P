@@ -10,8 +10,6 @@ interface ConnectedScreenProps {
   queue: TransferItem[];
   isConnected: boolean;
   canTransfer?: boolean;
-  autoAcceptFiles?: boolean;
-  onToggleAutoAccept?: () => void;
   webrtcState: WebRTCState;
   sessionId: string | null;
   textMessages: TextMessageItem[];
@@ -35,8 +33,6 @@ export const ConnectedScreen: React.FC<ConnectedScreenProps> = ({
   queue,
   isConnected,
   canTransfer = true,
-  autoAcceptFiles = false,
-  onToggleAutoAccept,
   webrtcState,
   sessionId,
   textMessages,
@@ -87,8 +83,6 @@ export const ConnectedScreen: React.FC<ConnectedScreenProps> = ({
           <FileTransfer
             queue={queue}
             canTransfer={canTransfer ?? isConnected}
-            autoAcceptFiles={autoAcceptFiles}
-            onToggleAutoAccept={onToggleAutoAccept}
             onOfferFiles={onOfferFiles}
             onOfferScannedFiles={onOfferScannedFiles}
             onAcceptOffer={onAcceptOffer}

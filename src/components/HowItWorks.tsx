@@ -1,4 +1,6 @@
 import React from 'react';
+import { ArrowUpRight, Link2, Send } from 'lucide-react';
+import { Card, CardContent } from './ui/card';
 
 export const HowItWorks: React.FC = () => {
   const steps = [
@@ -20,32 +22,19 @@ export const HowItWorks: React.FC = () => {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto w-full px-4 pt-4 space-y-4">
-      <div className="font-mono text-xs text-[#8a8a8a] tracking-widest uppercase">
-        How it works
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative">
-        {steps.map((step, idx) => (
-          <div
-            key={step.num}
-            className="tech-panel p-5 space-y-2 relative border border-[#1c1c22] bg-[#09090b] hover:border-[#ff2b2b]/40 transition-colors"
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-xs font-bold text-[#ff2b2b]">
-                {step.num}
-              </span>
-              <span className="font-mono text-xs text-[#f2f2f2] font-semibold tracking-wider">
-                {step.title}
-              </span>
-            </div>
-
-            <p className="text-xs text-[#8a8a8a] leading-relaxed">
-              {step.desc}
-            </p>
-          </div>
-        ))}
-      </div>
+    <div className="workflow-grid">
+      {steps.map((step, idx) => {
+        const Icon = [ArrowUpRight, Link2, Send][idx];
+        return (
+          <Card key={step.num} className="workflow-card">
+            <CardContent className="workflow-card-content">
+              <div className="workflow-card-top"><span>{step.num}</span><Icon size={17} /></div>
+              <h3>{step.title}</h3>
+              <p>{step.desc}</p>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 };

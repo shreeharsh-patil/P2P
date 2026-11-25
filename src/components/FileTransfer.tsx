@@ -15,8 +15,6 @@ import { ZipStreamer } from '../utils/zipStreamer';
 interface FileTransferProps {
   queue: TransferItem[];
   canTransfer: boolean;
-  autoAcceptFiles?: boolean;
-  onToggleAutoAccept?: () => void;
   onOfferFiles: (files: FileList | File[]) => void;
   onOfferScannedFiles?: (files: ScannedFile[]) => void;
   onAcceptOffer: (id: string) => void;
@@ -73,8 +71,6 @@ const statusKindFor = (item: TransferItem): StatusKind => {
 export const FileTransfer: React.FC<FileTransferProps> = ({
   queue,
   canTransfer,
-  autoAcceptFiles = false,
-  onToggleAutoAccept,
   onOfferFiles,
   onOfferScannedFiles,
   onAcceptOffer,
@@ -411,22 +407,9 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
               </span>
             )}
 
-            {/* Quick Auto-Accept Toggle */}
-            {onToggleAutoAccept && (
-              <button
-                type="button"
-                onClick={onToggleAutoAccept}
-                className={`px-2 py-0.5 text-[10px] font-mono rounded-xs border flex items-center gap-1 transition-all ${
-                  autoAcceptFiles
-                    ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300 font-bold shadow-[0_0_8px_rgba(16,185,129,0.2)]'
-                    : 'border-[#26262e] bg-[#0c0c0e] text-[#666] hover:text-[#999]'
-                }`}
-                title="Toggle automatic acceptance of incoming files"
-              >
-                <Zap className={`w-3 h-3 ${autoAcceptFiles ? 'text-emerald-400 fill-emerald-400' : 'text-[#666]'}`} />
-                <span>Auto-Accept: {autoAcceptFiles ? 'ON' : 'OFF'}</span>
-              </button>
-            )}
+            <span className="auto-accept-indicator" aria-label="Incoming files are accepted automatically">
+              <Zap className="h-3 w-3" aria-hidden="true" /> AUTO ACCEPT ON
+            </span>
           </div>
 
           {/* BATCH ACTION BUTTONS */}

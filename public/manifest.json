@@ -4,8 +4,8 @@
   "description": "Production-Grade Zero-Server Peer-to-Peer File & Text Transfer Platform",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#050505",
-  "theme_color": "#ff2b2b",
+  "background_color": "#0b0912",
+  "theme_color": "#e2557b",
   "icons": [
     {
       "src": "/favicon.svg",

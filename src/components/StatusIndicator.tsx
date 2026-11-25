@@ -23,9 +23,9 @@ interface StatusIndicatorProps {
 
 const STATUS_META: Record<StatusKind, { glyph: string; color: string; label: string; pulse?: boolean }> = {
   waiting: { glyph: '●', color: '#8a8a8a', label: 'WAITING' },
-  connecting: { glyph: '◌', color: '#ff2b2b', label: 'CONNECTING', pulse: true },
-  connected: { glyph: '●', color: '#ff2b2b', label: 'CONNECTED', pulse: true },
-  transferring: { glyph: '●', color: '#ff2b2b', label: 'TRANSFERRING', pulse: true },
+  connecting: { glyph: '◌', color: '#f27494', label: 'CONNECTING', pulse: true },
+  connected: { glyph: '●', color: '#6be0eb', label: 'CONNECTED', pulse: true },
+  transferring: { glyph: '●', color: '#f39470', label: 'TRANSFERRING', pulse: true },
   paused: { glyph: '⏸', color: '#f2b84b', label: 'PAUSED' },
   verifying: { glyph: '◌', color: '#f2b84b', label: 'VERIFYING' },
   incoming: { glyph: '◌', color: '#f2b84b', label: 'INCOMING OFFER' },

@@ -44,9 +44,6 @@ export const App: React.FC = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // Engine Preferences
-  const [autoAcceptFiles, setAutoAcceptFiles] = useState<boolean>(() => {
-    return localStorage.getItem('shree_auto_accept') === 'true';
-  });
   const [chunkSize, setChunkSize] = useState<number>(60 * 1024);
   const [preferDirectSave, setPreferDirectSave] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
@@ -107,7 +104,7 @@ export const App: React.FC = () => {
         showToast('info', `FILE OFFER: ${item.name}`);
       }
     });
-    transfer.setAutoAccept(localStorage.getItem('shree_auto_accept') === 'true');
+    transfer.setAutoAccept(true);
     transferRef.current = transfer;
 
     const extractJoinCodeFromUrl = (): string | null => {
@@ -389,27 +386,6 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleToggleAutoAccept = () => {
-    setAutoAcceptFiles((prev) => {
-      const next = !prev;
-      localStorage.setItem('shree_auto_accept', String(next));
-      if (transferRef.current) {
-        transferRef.current.setAutoAccept(next);
-      }
-      showToast('info', next ? 'AUTO-ACCEPT TRANSFERS: ENABLED' : 'AUTO-ACCEPT TRANSFERS: DISABLED');
-      return next;
-    });
-  };
-
-  const handleAutoAcceptChange = (val: boolean) => {
-    setAutoAcceptFiles(val);
-    localStorage.setItem('shree_auto_accept', String(val));
-    if (transferRef.current) {
-      transferRef.current.setAutoAccept(val);
-    }
-    showToast('info', val ? 'AUTO-ACCEPT TRANSFERS: ENABLED' : 'AUTO-ACCEPT TRANSFERS: DISABLED');
-  };
-
   const handleChunkSizeChange = (size: number) => {
     setChunkSize(size);
     if (transferRef.current) {
@@ -437,7 +413,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-[#f2f2f2] flex flex-col font-sans relative overflow-x-hidden">
+    <div className="app-shell min-h-screen bg-[#050505] text-[#f2f2f2] flex flex-col font-sans relative overflow-x-hidden">
       {/* Animated Technical Background */}
       <AnimatedBackground />
 
@@ -450,15 +426,13 @@ export const App: React.FC = () => {
           onOpenSettings={() => setIsSettingsModalOpen(true)}
         />
 
-        <main className="flex-1 w-full max-w-[960px] mx-auto py-6 sm:py-8">
+        <main className="app-main flex-1 w-full max-w-[1120px] mx-auto py-6 sm:py-8">
 
           {/* ============ CONNECTED WORKSPACE ============ */}
           {viewState === 'connected' ? (
             <ConnectedScreen
               queue={queue}
               isConnected={true}
-              autoAcceptFiles={autoAcceptFiles}
-              onToggleAutoAccept={handleToggleAutoAccept}
               webrtcState={webrtcState}
               sessionId={sessionId}
               textMessages={textMessages}
@@ -564,18 +538,24 @@ export const App: React.FC = () => {
 
           /* ============ LANDING ============ */
           ) : (
-            <div className="space-y-12">
-              <Hero />
-              <LandingActions
-                onCreateSession={handleCreateSession}
-                onSelectJoin={() => setViewState('join')}
-                onJoinSession={handleJoinSession}
-                onOpenQRScanner={() => setIsQRScannerOpen(true)}
-                activeMode="create"
-              />
-              <div id="how-it-works">
-                <HowItWorks />
+            <div className="landing-layout">
+              <div className="landing-main-grid">
+                <Hero />
+                <LandingActions
+                  onCreateSession={handleCreateSession}
+                  onSelectJoin={() => setViewState('join')}
+                  onJoinSession={handleJoinSession}
+                  onOpenQRScanner={() => setIsQRScannerOpen(true)}
+                  activeMode="create"
+                />
               </div>
+              <section className="landing-workflow" id="how-it-works">
+                <div className="workflow-heading">
+                  <span>THE WORKFLOW</span>
+                  <h2>Ready in three steps</h2>
+                </div>
+                <HowItWorks />
+              </section>
             </div>
           )}
         </main>
@@ -612,8 +592,6 @@ export const App: React.FC = () => {
         onChunkSizeChange={handleChunkSizeChange}
         preferDirectSave={preferDirectSave}
         onPreferDirectSaveChange={setPreferDirectSave}
-        autoAcceptFiles={autoAcceptFiles}
-        onAutoAcceptFilesChange={handleAutoAcceptChange}
         soundEnabled={soundEnabled}
         onSoundToggle={handleSoundToggle}
       />

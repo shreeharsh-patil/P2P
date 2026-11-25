@@ -1,5 +1,6 @@
 import React from 'react';
-import { X, Settings, Cpu, HardDrive, Volume2, Zap } from 'lucide-react';
+import { Settings, Cpu, HardDrive, Volume2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -8,8 +9,6 @@ interface SettingsModalProps {
   onChunkSizeChange: (size: number) => void;
   preferDirectSave: boolean;
   onPreferDirectSaveChange: (val: boolean) => void;
-  autoAcceptFiles: boolean;
-  onAutoAcceptFilesChange: (val: boolean) => void;
   soundEnabled: boolean;
   onSoundToggle: () => void;
 }
@@ -21,13 +20,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onChunkSizeChange,
   preferDirectSave,
   onPreferDirectSaveChange,
-  autoAcceptFiles,
-  onAutoAcceptFilesChange,
   soundEnabled,
   onSoundToggle
 }) => {
-  if (!isOpen) return null;
-
   const chunkSizes = [
     { label: '16 KB', value: 16 * 1024 },
     { label: '32 KB', value: 32 * 1024 },
@@ -35,19 +30,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-      <div className="tech-panel p-6 max-w-md w-full relative bg-[#09090b] border border-[#ff2b2b]/50 shadow-[0_0_30px_rgba(255,43,43,0.15)] font-mono space-y-5">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-md font-mono space-y-5">
         <div className="flex items-center justify-between border-b border-[#1c1c22] pb-3">
           <div className="flex items-center gap-2 text-[#ff2b2b]">
             <Settings className="w-5 h-5" />
-            <h3 className="text-sm font-bold text-[#f2f2f2] tracking-wide">Settings</h3>
+            <div>
+              <DialogTitle className="text-sm font-bold text-[#f2f2f2] tracking-wide">Settings</DialogTitle>
+              <DialogDescription className="mt-1 text-[10px] text-[#8a8a8a]">Adjust performance and save behavior.</DialogDescription>
+            </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 text-[#8a8a8a] hover:text-white rounded-xs transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <span className="w-8" aria-hidden="true" />
         </div>
 
         {/* Chunk Size Selector */}
@@ -96,29 +89,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         </div>
 
-        {/* Auto-Accept Files Toggle */}
-        <div className="space-y-2 pt-3 border-t border-[#1c1c22]">
-          <label className="text-xs font-bold text-[#8a8a8a] flex items-center gap-2">
-            <Zap className="w-4 h-4 text-[#ff2b2b]" />
-            Auto-accept transfers
-          </label>
-          <div
-            onClick={() => onAutoAcceptFilesChange(!autoAcceptFiles)}
-            className="p-3 bg-[#050505] rounded-xs border border-[#1c1c22] flex items-center justify-between cursor-pointer hover:border-[#26262e] transition-colors"
-          >
-            <div>
-              <div className="text-xs font-bold text-[#f2f2f2]">Auto-accept incoming files</div>
-              <div className="text-[10px] text-[#8a8a8a]">Automatically start downloading when peer sends files</div>
-            </div>
-            <input
-              type="checkbox"
-              checked={autoAcceptFiles}
-              onChange={() => {}}
-              className="accent-[#ff2b2b] w-4 h-4"
-            />
-          </div>
-        </div>
-
         {/* Audio Toggle */}
         <div className="space-y-2 pt-3 border-t border-[#1c1c22]">
           <div
@@ -137,7 +107,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             />
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
