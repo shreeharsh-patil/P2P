@@ -1,10 +1,10 @@
 /**
- * Shree P2P Service Worker
+ * DropIt P2P Service Worker
  * Network-first for navigation/HTML to prevent stale asset hashes.
  * Cache-first for static icons/manifests with offline fallback.
  */
 
-const CACHE_NAME = 'shree-p2p-cache-v2';
+const CACHE_NAME = 'dropit-p2p-cache-v3';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/favicon.svg'

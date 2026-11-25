@@ -1,5 +1,5 @@
 /**
- * Zero-Knowledge Cryptographic Engine for Shree P2P.
+ * Zero-Knowledge Cryptographic Engine for DropIt.
  * - Ephemeral ECDH (P-256) Key Exchange for End-to-End Room Encryption (E2EE)
  * - PBKDF2 Key Derivation for Password-Protected Rooms (100k iterations)
  * - AES-GCM 256-bit authenticated payload encryption/decryption

@@ -1,7 +1,7 @@
 {
-  "name": "shree-p2p",
+  "name": "dropit-p2p",
   "version": "1.0.0",
-  "description": "Shree - Private. Direct. Simple. Production-grade P2P File & Text Transfer Platform",
+  "description": "DropIt - Private. Direct. Simple. P2P File & Text Transfer",
   "type": "module",
   "scripts": {
     "dev": "vite",

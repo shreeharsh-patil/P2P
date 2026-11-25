@@ -1,5 +1,5 @@
 /**
- * Binary Protocol Framing for Shree WebRTC DataChannel
+ * Binary Protocol Framing for DropIt WebRTC DataChannel
  * Header Layout (36 bytes):
  * - [0..3]: Magic 'SHRE' (4 bytes)
  * - [4..19]: Transfer ID (16 bytes ASCII padded with zeros)

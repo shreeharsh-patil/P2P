@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for Shree P2P Platform
+# Multi-stage Dockerfile for DropIt P2P Platform
 
 FROM node:22-alpine AS builder
 

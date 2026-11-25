@@ -1,10 +1,10 @@
 <div align="center">
 
-# ⚡ SHREE — Private. Direct. Simple.
+# ⚡ DropIt — Private. Direct. Simple.
 
 ### Production-Grade Peer-to-Peer File & Text Transfer Platform, Zero-Server Memory Bounded WebRTC Engine
 
-**Shree** is an enterprise-grade, high-performance, privacy-first peer-to-peer data streaming platform designed to transfer files (including **10GB+ large files**) and instant text snippets directly between web browsers. By leveraging WebRTC DataChannels, `File.slice()` progressive chunk reading, Web Crypto SHA-256 integrity verification, and zero-server payload routing, Shree guarantees high-throughput browser transfers while keeping RAM usage strictly bounded under 5MB.
+**DropIt** is a high-performance, privacy-first peer-to-peer data streaming platform designed to transfer files (including **10GB+ large files**) and instant text snippets directly between web browsers. By leveraging WebRTC DataChannels, `File.slice()` progressive chunk reading, Web Crypto SHA-256 integrity verification, and zero-server payload routing, DropIt supports high-throughput browser transfers while keeping RAM usage strictly bounded under 5MB.
 
 <p align="center">
   <img src="https://img.shields.io/badge/TypeScript-5.9-blue.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript 5.9" />
@@ -42,7 +42,7 @@
 ```mermaid
 graph TD
     subgraph "Signaling & Handshake Gateway"
-        A["SHREE SIGNALING BACKEND<br><i>(Node.js / WebSockets / Port 4000)</i>"]
+        A["DROPIT SIGNALING BACKEND<br><i>(Node.js / WebSockets / Port 4000)</i>"]
     end
 
     subgraph "Sender Architecture - Device A"

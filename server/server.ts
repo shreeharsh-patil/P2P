@@ -206,5 +206,5 @@ setInterval(() => sessionManager.pruneStale(), 30_000);
 
 const PORT = process.env.PORT || 4050;
 server.listen(PORT, () => {
-  console.log(`Shree Signaling Server listening on port ${PORT}`);
+  console.log(`DropIt signaling server listening on port ${PORT}`);
 });

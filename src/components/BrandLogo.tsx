@@ -9,14 +9,14 @@ export const BrandLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'md'
       <div className={`${dimensions} relative flex items-center justify-center`}>
         <img 
           src="/favicon.svg" 
-          alt="SHREE Logo" 
+          alt="DropIt logo"
           className="w-full h-full object-contain filter drop-shadow-[0_0_8px_rgba(255,48,48,0.4)] group-hover:drop-shadow-[0_0_14px_rgba(255,48,48,0.7)] transition-all duration-300 transform group-hover:scale-105"
         />
       </div>
 
       <div className="flex flex-col">
         <span className={`font-mono font-black tracking-[0.2em] ${textSizes} text-[#f2f2f2] group-hover:text-white transition-colors uppercase`}>
-          SHREE
+          DROPIT
         </span>
       </div>
     </div>
