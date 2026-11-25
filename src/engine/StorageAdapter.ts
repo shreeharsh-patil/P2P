@@ -85,11 +85,20 @@ export class IndexedDBFallbackWriter implements StorageWriter {
   private transferId: string;
   private totalChunks: number;
   private memoryChunks: Map<number, Uint8Array> = new Map();
-  private maxMemoryChunks: number = 16;
+  private maxMemoryChunks: number = 64;
+  private pendingBatch: { transferId: string; chunkIndex: number; data: Uint8Array }[] = [];
+  private batchFlushSize: number = 32;
 
   constructor(transferId: string, totalChunks: number) {
     this.transferId = transferId;
     this.totalChunks = totalChunks;
+  }
+
+  private async flushBatch(): Promise<void> {
+    if (this.pendingBatch.length === 0) return;
+    const batch = this.pendingBatch;
+    this.pendingBatch = [];
+    await IDBStorage.saveChunksBatch(batch);
   }
 
   public async writeChunk(chunkIndex: number, offset: bigint, data: Uint8Array): Promise<void> {
@@ -100,10 +109,14 @@ export class IndexedDBFallbackWriter implements StorageWriter {
       }
     }
     this.memoryChunks.set(chunkIndex, data);
-    await IDBStorage.saveChunk(this.transferId, chunkIndex, data);
+    this.pendingBatch.push({ transferId: this.transferId, chunkIndex, data });
+    if (this.pendingBatch.length >= this.batchFlushSize) {
+      await this.flushBatch();
+    }
   }
 
   public async close(name: string, type: string): Promise<Blob> {
+    await this.flushBatch();
     const parts: BlobPart[] = [];
     for (let i = 0; i < this.totalChunks; i++) {
       let chunk = this.memoryChunks.get(i);
@@ -119,6 +132,7 @@ export class IndexedDBFallbackWriter implements StorageWriter {
   }
 
   public async abort(): Promise<void> {
+    this.pendingBatch = [];
     this.memoryChunks.clear();
     await IDBStorage.clearTransferChunks(this.transferId);
   }

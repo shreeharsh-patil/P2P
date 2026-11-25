@@ -13,8 +13,8 @@ export class IntegrityManager {
     const chunkSize = 2 * 1024 * 1024; // 2MB read blocks for hash computation
     const totalChunks = Math.ceil(file.size / chunkSize);
     
-    // For small files (< 100MB), compute hash in one pass
-    if (file.size < 100 * 1024 * 1024) {
+    // For small files (< 16MB), compute hash in one pass
+    if (file.size < 16 * 1024 * 1024) {
       const buffer = await file.arrayBuffer();
       const digest = await crypto.subtle.digest('SHA-256', buffer);
       return this.bufferToHex(digest);

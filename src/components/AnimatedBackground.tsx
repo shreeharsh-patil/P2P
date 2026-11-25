@@ -12,6 +12,8 @@ export const AnimatedBackground: React.FC = () => {
         variation={0.65}
         brightness={0.72}
         opacity={0.62}
+        quality={0.4}
+        dpr={1.25}
         mouseInteraction={false}
       />
 

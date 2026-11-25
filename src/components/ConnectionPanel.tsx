@@ -9,7 +9,7 @@ interface ConnectionPanelProps {
   dataChannelState?: string;
 }
 
-export const ConnectionPanel: React.FC<ConnectionPanelProps> = ({
+export const ConnectionPanel: React.FC<ConnectionPanelProps> = React.memo(({
   webrtcState,
   sessionId,
   iceConnectionState,
@@ -44,4 +44,4 @@ export const ConnectionPanel: React.FC<ConnectionPanelProps> = ({
       </div>
     </details>
   );
-};
+});

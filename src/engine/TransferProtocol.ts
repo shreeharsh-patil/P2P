@@ -20,6 +20,8 @@ export interface ParsedChunkPacket {
 
 export const HEADER_SIZE = 36;
 const MAGIC_BYTES = new Uint8Array([0x53, 0x48, 0x52, 0x45]); // 'SHRE'
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
 
 export class TransferProtocol {
   /**
@@ -39,8 +41,7 @@ export class TransferProtocol {
     packet.set(MAGIC_BYTES, 0);
 
     // 2. Transfer ID (16 bytes string)
-    const idEncoder = new TextEncoder();
-    const idBytes = idEncoder.encode(transferId.slice(0, 16));
+    const idBytes = textEncoder.encode(transferId.slice(0, 16));
     packet.set(idBytes, 4);
 
     // 3. DataView for numbers
@@ -77,8 +78,7 @@ export class TransferProtocol {
 
     // 2. Transfer ID
     const idBytes = new Uint8Array(buffer, 4, 16);
-    const decoder = new TextDecoder();
-    const rawId = decoder.decode(idBytes);
+    const rawId = textDecoder.decode(idBytes);
     // Strip trailing null characters (\0)
     const transferId = rawId.replace(/\0/g, '');
 

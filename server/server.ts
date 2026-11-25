@@ -10,7 +10,7 @@ app.use(cors());
 app.use(express.json());
 
 const server = createServer(app);
-const wss = new WebSocketServer({ server, path: '/ws' });
+const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 2 * 1024 * 1024 });
 const sessionManager = new SessionManager();
 
 app.get('/api/health', (_req, res) => {
@@ -72,7 +72,9 @@ wss.on('connection', (ws: WebSocket) => {
   ws.on('message', (data: string) => {
     try {
       const msg: SignalMessage = JSON.parse(data.toString());
-      console.log(`[WS] ${peerId} -> ${msg.type}${msg.sessionId ? ` session=${msg.sessionId}` : ''}${msg.targetPeerId ? ` target=${msg.targetPeerId}` : ''}`);
+      if (msg.type !== 'PING' && !(msg.type === 'SIGNAL' && (msg.payload as any)?.isRelayData)) {
+        console.log(`[WS] ${peerId} -> ${msg.type}${msg.sessionId ? ` session=${msg.sessionId}` : ''}${msg.targetPeerId ? ` target=${msg.targetPeerId}` : ''}`);
+      }
 
       switch (msg.type) {
         case 'PING':

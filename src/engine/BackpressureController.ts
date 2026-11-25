@@ -11,26 +11,31 @@ export class BackpressureController {
   private isPaused: boolean = false;
   private drainPromise: Promise<void> | null = null;
   private resolveDrain: (() => void) | null = null;
+  private onLowHandler: () => void;
 
   constructor(
     channel: RTCDataChannel,
-    highWaterMark: number = 8 * 1024 * 1024, // 8 MB high water mark for Gbps streaming
-    lowWaterMark: number = 2 * 1024 * 1024   // 2 MB low water mark
+    highWaterMark: number = 4 * 1024 * 1024, // 4 MB high water mark for full-speed WebRTC streaming
+    lowWaterMark: number = 1 * 1024 * 1024   // 1 MB low water mark
   ) {
     this.channel = channel;
     this.highWaterMark = highWaterMark;
     this.lowWaterMark = lowWaterMark;
 
-    // Configure browser data channel low threshold
     try {
       this.channel.bufferedAmountLowThreshold = this.lowWaterMark;
     } catch (e) {
       console.warn('bufferedAmountLowThreshold not supported by browser', e);
     }
 
-    this.channel.onbufferedamountlow = () => {
+    this.onLowHandler = () => {
       this.checkDrain();
     };
+    if (typeof this.channel.addEventListener === 'function') {
+      this.channel.addEventListener('bufferedamountlow', this.onLowHandler);
+    } else {
+      this.channel.onbufferedamountlow = this.onLowHandler;
+    }
   }
 
   public setThresholds(highWater: number, lowWater: number) {
@@ -45,6 +50,7 @@ export class BackpressureController {
    * Called before sending a chunk. If buffer is too high, awaits until bufferedAmount drops.
    */
   public async waitIfBuffered(): Promise<void> {
+    if (this.channel.readyState !== 'open') return;
     if (this.channel.bufferedAmount >= this.highWaterMark) {
       if (!this.isPaused) {
         this.isPaused = true;
@@ -53,25 +59,45 @@ export class BackpressureController {
         });
       }
 
-      // Safety polling fallback in case onbufferedamountlow is delayed
+      let interval: ReturnType<typeof setInterval> | null = null;
       const timeoutPromise = new Promise<void>((resolve) => {
-        const interval = setInterval(() => {
-          if (this.channel.bufferedAmount <= this.lowWaterMark) {
-            clearInterval(interval);
+        interval = setInterval(() => {
+          if (this.channel.readyState !== 'open' || this.channel.bufferedAmount <= this.lowWaterMark) {
+            if (interval) {
+              clearInterval(interval);
+              interval = null;
+            }
             resolve();
           }
-        }, 15);
+        }, 10);
       });
 
-      await Promise.race([this.drainPromise, timeoutPromise]);
-      this.isPaused = false;
-      this.drainPromise = null;
-      this.resolveDrain = null;
+      try {
+        await Promise.race([this.drainPromise, timeoutPromise]);
+      } finally {
+        if (interval) {
+          clearInterval(interval);
+          interval = null;
+        }
+        this.isPaused = false;
+        this.drainPromise = null;
+        this.resolveDrain = null;
+      }
     }
   }
 
+  public destroy(): void {
+    if (typeof this.channel.removeEventListener === 'function') {
+      this.channel.removeEventListener('bufferedamountlow', this.onLowHandler);
+    }
+    this.resolveDrain?.();
+    this.resolveDrain = null;
+    this.drainPromise = null;
+    this.isPaused = false;
+  }
+
   private checkDrain() {
-    if (this.channel.bufferedAmount <= this.lowWaterMark && this.resolveDrain) {
+    if ((this.channel.readyState !== 'open' || this.channel.bufferedAmount <= this.lowWaterMark) && this.resolveDrain) {
       this.resolveDrain();
       this.resolveDrain = null;
     }

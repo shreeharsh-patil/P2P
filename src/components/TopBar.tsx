@@ -20,7 +20,7 @@ const statusFor = (
   return signalingConnected ? 'online' : 'offline';
 };
 
-export const TopBar: React.FC<TopBarProps> = ({
+export const TopBar: React.FC<TopBarProps> = React.memo(({
   webrtcState,
   signalingConnected,
   sessionId
@@ -39,4 +39,4 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
     </header>
   );
-};
+});

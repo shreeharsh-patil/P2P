@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { lazy, Suspense, useRef, useState, useMemo } from 'react';
 import { 
   UploadCloud, File, FileText, Image, Video, Music, Archive, 
   Pause, Play, X, ShieldCheck, AlertCircle, Download, Eye,
@@ -8,9 +8,10 @@ import {
 import { TransferItem } from '../engine/types';
 import { formatBytes, formatTimeRemaining, truncateFileName } from '../utils/formatters';
 import { StatusIndicator, StatusKind } from './StatusIndicator';
-import { FilePreviewModal } from './FilePreviewModal';
 import { scanDataTransferItems, extractFromFolderInput, ScannedFile } from '../utils/directoryReader';
 import { ZipStreamer } from '../utils/zipStreamer';
+
+const FilePreviewModal = lazy(() => import('./FilePreviewModal').then((module) => ({ default: module.FilePreviewModal })));
 
 interface FileTransferProps {
   queue: TransferItem[];
@@ -727,10 +728,14 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
       </div>
 
       {/* File Preview Modal */}
-      <FilePreviewModal
-        item={previewItem}
-        onClose={() => setPreviewItem(null)}
-      />
+      {previewItem && (
+        <Suspense fallback={null}>
+          <FilePreviewModal
+            item={previewItem}
+            onClose={() => setPreviewItem(null)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

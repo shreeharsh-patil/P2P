@@ -3,12 +3,7 @@ import { AnimatedBackground } from './components/AnimatedBackground';
 import { TopBar } from './components/TopBar';
 import { Hero } from './components/Hero';
 import { LandingActions } from './components/LandingActions';
-import { HostScreen } from './components/HostScreen';
-import { JoinScreen } from './components/JoinScreen';
-import { ConnectedScreen } from './components/ConnectedScreen';
 import { Footer } from './components/Footer';
-import { QRCodeModal } from './components/QRCodeModal';
-import { SettingsModal } from './components/SettingsModal';
 import { Toast, ToastMessage } from './components/Toast';
 import { TextMessageItem } from './components/TextTransfer';
 
@@ -20,6 +15,10 @@ import { sounds } from './utils/audio';
 
 type ViewState = 'landing' | 'host' | 'join' | 'waiting' | 'connected' | 'failed';
 
+const HostScreen = lazy(() => import('./components/HostScreen').then((module) => ({ default: module.HostScreen })));
+const JoinScreen = lazy(() => import('./components/JoinScreen').then((module) => ({ default: module.JoinScreen })));
+const ConnectedScreen = lazy(() => import('./components/ConnectedScreen').then((module) => ({ default: module.ConnectedScreen })));
+const QRCodeModal = lazy(() => import('./components/QRCodeModal').then((module) => ({ default: module.QRCodeModal })));
 const QRScannerModal = lazy(() => import('./components/QRScannerModal').then((module) => ({ default: module.QRScannerModal })));
 
 export const App: React.FC = () => {
@@ -40,12 +39,9 @@ export const App: React.FC = () => {
   // Modals
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // Engine Preferences
-  const [chunkSize, setChunkSize] = useState<number>(60 * 1024);
-  const [preferDirectSave, setPreferDirectSave] = useState<boolean>(false);
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [preferDirectSave] = useState<boolean>(false);
 
   const showToast = (type: 'success' | 'error' | 'info', text: string) => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -181,7 +177,7 @@ export const App: React.FC = () => {
     });
 
     signaling.on('PEER_READY', (msg) => {
-      if (rtc.areChannelsOpen() && !rtc.isWebSocketRelayMode) return;
+      if (rtc.areChannelsOpen()) return;
       rtc.close();
       if (msg.peerId) {
         rtc.setTargetPeerId(msg.peerId);
@@ -191,8 +187,8 @@ export const App: React.FC = () => {
     });
 
     signaling.on('PEER_PAUSED', () => {
-      if (rtc.areChannelsOpen() && !rtc.isWebSocketRelayMode) {
-        showToast('info', 'SIGNALING INTERRUPTED — DIRECT TRANSFER STILL ACTIVE');
+      if (rtc.connectionState === 'connecting' || (rtc.areChannelsOpen() && !rtc.isWebSocketRelayMode)) {
+        showToast('info', 'SIGNALING INTERRUPTED — PEER CONNECTION PRESERVED');
         return;
       }
       rtc.close();
@@ -291,35 +287,42 @@ export const App: React.FC = () => {
   };
 
   // Transfer Engine Handlers
-  const handleOfferFiles = async (files: FileList | File[]) => {
-    if (transferRef.current) {
-      const batchId = Math.random().toString(36).substring(2, 9);
-      for (const file of Array.from(files)) {
-        const relPath = (file as any).webkitRelativePath || file.name;
+  const offerEntriesWithConcurrency = async (
+    entries: { file: File; relativePath: string }[],
+    label: string
+  ) => {
+    const transfer = transferRef.current;
+    if (!transfer || entries.length === 0) return;
+    const batchId = Math.random().toString(36).substring(2, 9);
+    const concurrency = Math.min(3, entries.length);
+    let cursor = 0;
+
+    const worker = async () => {
+      while (cursor < entries.length) {
+        const current = entries[cursor++];
         try {
-          await transferRef.current.offerFile(file, relPath, batchId);
+          await transfer.offerFile(current.file, current.relativePath, batchId);
         } catch (error) {
           console.error('Failed to offer file', error);
-          showToast('error', `FAILED TO OFFER: ${file.name}`);
+          showToast('error', `FAILED TO OFFER: ${current.file.name}`);
         }
       }
-      showToast('info', `OFFERING ${files.length} FILE(S) TO PEER`);
-    }
+    };
+
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    showToast('info', `OFFERING ${entries.length} ${label} TO PEER`);
+  };
+
+  const handleOfferFiles = async (files: FileList | File[]) => {
+    const entries = Array.from(files).map((file) => ({
+      file,
+      relativePath: (file as any).webkitRelativePath || file.name
+    }));
+    await offerEntriesWithConcurrency(entries, 'FILE(S)');
   };
 
   const handleOfferScannedFiles = async (scannedFiles: { file: File; relativePath: string }[]) => {
-    if (transferRef.current && scannedFiles.length > 0) {
-      const batchId = Math.random().toString(36).substring(2, 9);
-      for (const { file, relativePath } of scannedFiles) {
-        try {
-          await transferRef.current.offerFile(file, relativePath, batchId);
-        } catch (error) {
-          console.error('Failed to offer file', error);
-          showToast('error', `FAILED TO OFFER: ${file.name}`);
-        }
-      }
-      showToast('info', `OFFERING ${scannedFiles.length} ITEM(S) TO PEER`);
-    }
+    await offerEntriesWithConcurrency(scannedFiles, 'ITEM(S)');
   };
 
   const handleAcceptOffer = (id: string) => {
@@ -385,20 +388,6 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleChunkSizeChange = (size: number) => {
-    setChunkSize(size);
-    if (transferRef.current) {
-      transferRef.current.setChunkSize(size);
-    }
-  };
-
-  const handleSoundToggle = () => {
-    setSoundEnabled((prev) => {
-      sounds.enabled = !prev;
-      return !prev;
-    });
-  };
-
   const handleSendText = (text: string) => {
     if (rtcRef.current) {
       const sent = rtcRef.current.sendTextMessage(text);
@@ -425,140 +414,143 @@ export const App: React.FC = () => {
         />
 
         <main className="flex-1 w-full max-w-[1120px] mx-auto py-6 sm:py-8">
+          <Suspense fallback={null}>
+            {/* ============ CONNECTED WORKSPACE ============ */}
+            {viewState === 'connected' ? (
+              <ConnectedScreen
+                queue={queue}
+                isConnected={true}
+                webrtcState={webrtcState}
+                sessionId={sessionId}
+                textMessages={textMessages}
+                onOfferFiles={handleOfferFiles}
+                onOfferScannedFiles={handleOfferScannedFiles}
+                onAcceptOffer={handleAcceptOffer}
+                onRejectOffer={handleRejectOffer}
+                onAcceptAllOffers={handleAcceptAllOffers}
+                onRejectAllOffers={handleRejectAllOffers}
+                onPauseAll={handlePauseAll}
+                onResumeAll={handleResumeAll}
+                onCancelAll={handleCancelAll}
+                onPauseTransfer={handlePauseTransfer}
+                onResumeTransfer={handleResumeTransfer}
+                onCancelTransfer={handleCancelTransfer}
+                onSendText={handleSendText}
+                onDisconnect={handleDisconnect}
+              />
 
-          {/* ============ CONNECTED WORKSPACE ============ */}
-          {viewState === 'connected' ? (
-            <ConnectedScreen
-              queue={queue}
-              isConnected={true}
-              webrtcState={webrtcState}
-              sessionId={sessionId}
-              textMessages={textMessages}
-              onOfferFiles={handleOfferFiles}
-              onOfferScannedFiles={handleOfferScannedFiles}
-              onAcceptOffer={handleAcceptOffer}
-              onRejectOffer={handleRejectOffer}
-              onAcceptAllOffers={handleAcceptAllOffers}
-              onRejectAllOffers={handleRejectAllOffers}
-              onPauseAll={handlePauseAll}
-              onResumeAll={handleResumeAll}
-              onCancelAll={handleCancelAll}
-              onPauseTransfer={handlePauseTransfer}
-              onResumeTransfer={handleResumeTransfer}
-              onCancelTransfer={handleCancelTransfer}
-              onSendText={handleSendText}
-              onDisconnect={handleDisconnect}
-            />
-
-          ) : viewState === 'waiting' ? (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-fade-in-up font-mono">
-              <div className="relative w-20 h-20">
-                <div className="absolute inset-0 rounded-full border-2 border-[rgba(255,48,48,0.15)]" />
-                <div className="absolute inset-0 rounded-full border-t-2 border-[#ff3030] animate-spin" />
-                <div className="absolute inset-[6px] rounded-full border-t-2 border-[rgba(255,48,48,0.4)] animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
-              </div>
-              <div className="text-center space-y-2">
-                <p className="text-sm text-[#ff3030] tracking-[0.25em] uppercase font-bold animate-pulse">
-                  ESTABLISHING ENCRYPTED TUNNEL
-                </p>
-                {sessionId && (
-                  <p className="text-xs text-[#555] tracking-widest">
-                    SESSION: <span className="text-[#888]">{sessionId}</span>
+            ) : viewState === 'waiting' ? (
+              <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-fade-in-up font-mono">
+                <div className="relative w-20 h-20">
+                  <div className="absolute inset-0 rounded-full border-2 border-[rgba(255,48,48,0.15)]" />
+                  <div className="absolute inset-0 rounded-full border-t-2 border-[#ff3030] animate-spin" />
+                  <div className="absolute inset-[6px] rounded-full border-t-2 border-[rgba(255,48,48,0.4)] animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
+                </div>
+                <div className="text-center space-y-2">
+                  <p className="text-sm text-[#ff3030] tracking-[0.25em] uppercase font-bold animate-pulse">
+                    ESTABLISHING ENCRYPTED TUNNEL
                   </p>
-                )}
-                <p className="text-xs text-[#444] mt-4 max-w-xs mx-auto leading-relaxed">
-                  Negotiating WebRTC DataChannel via STUN/TURN.<br />This may take 10–30 seconds.
-                </p>
-              </div>
-              <button
-                onClick={handleDisconnect}
-                className="mt-4 px-5 py-2 text-xs font-mono text-rose-400 border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 uppercase tracking-wider transition-colors"
-              >
-                CANCEL
-              </button>
-            </div>
-
-          /* ============ FAILED / RETRY ============ */
-          ) : viewState === 'failed' ? (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-fade-in-up font-mono">
-              <div className="w-16 h-16 flex items-center justify-center border-2 border-rose-500/50 rounded-full text-rose-400 text-3xl">
-                ✕
-              </div>
-              <div className="text-center space-y-3">
-                <p className="text-sm text-rose-400 tracking-[0.25em] uppercase font-bold">
-                  CONNECTION FAILED
-                </p>
-                <p className="text-xs text-[#555] max-w-xs mx-auto leading-relaxed">
-                  WebRTC could not establish a direct channel.<br />
-                  Check the browser console (F12) for detailed diagnostics.
-                </p>
-              </div>
-              {rtcRef.current && (
-                <pre className="text-[10px] text-[#555] bg-[#0a0a0a] border border-[#1a1a1a] p-3 rounded max-w-sm w-full text-left whitespace-pre-wrap">
-                  {rtcRef.current.getDiagnostics()}
-                </pre>
-              )}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    handleDisconnect();
-                    setTimeout(() => handleCreateSession(), 100);
-                  }}
-                  className="px-5 py-2 text-xs font-mono text-[#ff3030] border border-[#ff3030]/40 bg-[#ff3030]/10 hover:bg-[#ff3030]/20 uppercase tracking-wider transition-colors"
-                >
-                  NEW SESSION
-                </button>
+                  {sessionId && (
+                    <p className="text-xs text-[#555] tracking-widest">
+                      SESSION: <span className="text-[#888]">{sessionId}</span>
+                    </p>
+                  )}
+                  <p className="text-xs text-[#444] mt-4 max-w-xs mx-auto leading-relaxed">
+                    Negotiating WebRTC DataChannel via STUN/TURN.<br />This may take 10–30 seconds.
+                  </p>
+                </div>
                 <button
                   onClick={handleDisconnect}
-                  className="px-5 py-2 text-xs font-mono text-[#888] border border-[#333] hover:border-[#555] uppercase tracking-wider transition-colors"
+                  className="mt-4 px-5 py-2 text-xs font-mono text-rose-400 border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 uppercase tracking-wider transition-colors"
                 >
-                  GO HOME
+                  CANCEL
                 </button>
               </div>
-            </div>      
 
-          /* ============ HOST SCREEN ============ */
-          ) : viewState === 'host' && sessionId ? (
-            <HostScreen
-              sessionId={sessionId}
-              webrtcState={webrtcState}
-              onRegenerateSession={handleCreateSession}
-              onBack={handleDisconnect}
-            />
+            /* ============ FAILED / RETRY ============ */
+            ) : viewState === 'failed' ? (
+              <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-fade-in-up font-mono">
+                <div className="w-16 h-16 flex items-center justify-center border-2 border-rose-500/50 rounded-full text-rose-400 text-3xl">
+                  ✕
+                </div>
+                <div className="text-center space-y-3">
+                  <p className="text-sm text-rose-400 tracking-[0.25em] uppercase font-bold">
+                    CONNECTION FAILED
+                  </p>
+                  <p className="text-xs text-[#555] max-w-xs mx-auto leading-relaxed">
+                    WebRTC could not establish a direct channel.<br />
+                    Check the browser console (F12) for detailed diagnostics.
+                  </p>
+                </div>
+                {rtcRef.current && (
+                  <pre className="text-[10px] text-[#555] bg-[#0a0a0a] border border-[#1a1a1a] p-3 rounded max-w-sm w-full text-left whitespace-pre-wrap">
+                    {rtcRef.current.getDiagnostics()}
+                  </pre>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      handleDisconnect();
+                      setTimeout(() => handleCreateSession(), 100);
+                    }}
+                    className="px-5 py-2 text-xs font-mono text-[#ff3030] border border-[#ff3030]/40 bg-[#ff3030]/10 hover:bg-[#ff3030]/20 uppercase tracking-wider transition-colors"
+                  >
+                    NEW SESSION
+                  </button>
+                  <button
+                    onClick={handleDisconnect}
+                    className="px-5 py-2 text-xs font-mono text-[#888] border border-[#333] hover:border-[#555] uppercase tracking-wider transition-colors"
+                  >
+                    GO HOME
+                  </button>
+                </div>
+              </div>
 
-          /* ============ JOIN SCREEN ============ */
-          ) : viewState === 'join' ? (
-            <JoinScreen
-              onJoinSession={handleJoinSession}
-              onOpenQRScanner={() => setIsQRScannerOpen(true)}
-              onBack={() => setViewState('landing')}
-            />
+            /* ============ HOST SCREEN ============ */
+            ) : viewState === 'host' && sessionId ? (
+              <HostScreen
+                sessionId={sessionId}
+                webrtcState={webrtcState}
+                onRegenerateSession={handleCreateSession}
+                onBack={handleDisconnect}
+              />
 
-          /* ============ LANDING ============ */
-          ) : (
-            <div className="mx-auto flex w-full max-w-[720px] flex-col items-center gap-10 px-4 py-10 sm:gap-12 sm:py-14">
-              <Hero />
-              <LandingActions
-                onCreateSession={handleCreateSession}
-                onSelectJoin={() => setViewState('join')}
+            /* ============ JOIN SCREEN ============ */
+            ) : viewState === 'join' ? (
+              <JoinScreen
                 onJoinSession={handleJoinSession}
                 onOpenQRScanner={() => setIsQRScannerOpen(true)}
-                activeMode="create"
+                onBack={() => setViewState('landing')}
               />
-            </div>
-          )}
+
+            /* ============ LANDING ============ */
+            ) : (
+              <div className="mx-auto flex w-full max-w-[720px] flex-col items-center gap-10 px-4 py-10 sm:gap-12 sm:py-14">
+                <Hero />
+                <LandingActions
+                  onCreateSession={handleCreateSession}
+                  onSelectJoin={() => setViewState('join')}
+                  onJoinSession={handleJoinSession}
+                  onOpenQRScanner={() => setIsQRScannerOpen(true)}
+                  activeMode="create"
+                />
+              </div>
+            )}
+          </Suspense>
         </main>
 
         <Footer />
       </div>
 
       {/* Modals & Notifications */}
-      {sessionId && (
-        <QRCodeModal
-          isOpen={isQRModalOpen}
-          onClose={() => setIsQRModalOpen(false)}
-          sessionId={sessionId}
-        />
+      {sessionId && isQRModalOpen && (
+        <Suspense fallback={null}>
+          <QRCodeModal
+            isOpen={isQRModalOpen}
+            onClose={() => setIsQRModalOpen(false)}
+            sessionId={sessionId}
+          />
+        </Suspense>
       )}
 
       {isQRScannerOpen && (
@@ -573,17 +565,6 @@ export const App: React.FC = () => {
           />
         </Suspense>
       )}
-
-      <SettingsModal
-        isOpen={isSettingsModalOpen}
-        onClose={() => setIsSettingsModalOpen(false)}
-        chunkSize={chunkSize}
-        onChunkSizeChange={handleChunkSizeChange}
-        preferDirectSave={preferDirectSave}
-        onPreferDirectSaveChange={setPreferDirectSave}
-        soundEnabled={soundEnabled}
-        onSoundToggle={handleSoundToggle}
-      />
 
       <Toast toasts={toasts} onDismiss={dismissToast} />
     </div>

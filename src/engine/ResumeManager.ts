@@ -4,6 +4,8 @@ export class ResumeManager {
   private transferId: string;
   private totalChunks: number;
   private receivedChunks: Set<number> = new Set();
+  private unsavedCount = 0;
+  private lastSavedAt = 0;
 
   constructor(transferId: string, totalChunks: number) {
     this.transferId = transferId;
@@ -17,9 +19,21 @@ export class ResumeManager {
     }
   }
 
+  public hasChunk(chunkIndex: number): boolean {
+    return this.receivedChunks.has(chunkIndex);
+  }
+
   public async markChunkReceived(chunkIndex: number): Promise<void> {
     this.receivedChunks.add(chunkIndex);
-    if (this.receivedChunks.size % 10 === 0 || this.receivedChunks.size === this.totalChunks) {
+    this.unsavedCount += 1;
+    const now = Date.now();
+    if (
+      this.receivedChunks.size === this.totalChunks ||
+      this.unsavedCount >= 64 ||
+      now - this.lastSavedAt >= 1500
+    ) {
+      this.unsavedCount = 0;
+      this.lastSavedAt = now;
       await this.saveState();
     }
   }

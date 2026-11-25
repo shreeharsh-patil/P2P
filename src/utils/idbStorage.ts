@@ -67,15 +67,31 @@ export class IDBStorage {
   }
 
   public static async saveChunk(transferId: string, chunkIndex: number, data: Uint8Array): Promise<void> {
+    return this.saveChunksBatch([{ transferId, chunkIndex, data }]);
+  }
+
+  public static async saveChunksBatch(
+    entries: { transferId: string; chunkIndex: number; data: Uint8Array }[]
+  ): Promise<void> {
+    if (entries.length === 0) return;
     const db = await this.getDB();
-    const key = `${transferId}_${chunkIndex}`;
     if (!db) {
-      inMemoryChunks.set(key, data);
+      for (const entry of entries) {
+        inMemoryChunks.set(`${entry.transferId}_${entry.chunkIndex}`, entry.data);
+      }
       return;
     }
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_CHUNKS, 'readwrite');
-      tx.objectStore(STORE_CHUNKS).put({ key, transferId, chunkIndex, data });
+      const store = tx.objectStore(STORE_CHUNKS);
+      for (const entry of entries) {
+        store.put({
+          key: `${entry.transferId}_${entry.chunkIndex}`,
+          transferId: entry.transferId,
+          chunkIndex: entry.chunkIndex,
+          data: entry.data
+        });
+      }
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });

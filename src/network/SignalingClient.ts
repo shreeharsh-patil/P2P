@@ -15,6 +15,8 @@ export class SignalingClient {
   private statusListener: ((connected: boolean) => void) | null = null;
   private resumeToken: string | null = null;
   private awaitingResume = false;
+  private lastPongAt = Date.now();
+  private cleanupNetworkListeners: (() => void) | null = null;
   public peerId: string | null = null;
   public sessionId: string | null = null;
   public targetPeerId: string | null = null;
@@ -29,10 +31,56 @@ export class SignalingClient {
     this.serverUrl = serverUrl || envUrl || (isLocal
       ? `${protocol}//${hostname}:4050/ws`
       : 'wss://p2p-9ewe.onrender.com/ws');
+    this.setupNetworkListeners();
+  }
+
+  private setupNetworkListeners(): void {
+    const wakeConnection = () => {
+      if (!this.shouldReconnect) return;
+      if (this.isOnline()) {
+        try {
+          this.ws!.send(JSON.stringify({ type: 'PING' }));
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+      this.clearReconnectTimer();
+      this.retries = 0;
+      if (!this.connectPromise) {
+        void this.connect().catch(() => {});
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        wakeConnection();
+      }
+    };
+
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('online', wakeConnection);
+    }
+    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+      document.addEventListener('visibilitychange', onVisibilityChange);
+    }
+
+    this.cleanupNetworkListeners = () => {
+      if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+        window.removeEventListener('online', wakeConnection);
+      }
+      if (typeof document !== 'undefined' && typeof document.removeEventListener === 'function') {
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+      }
+    };
   }
 
   public isOnline(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  public getBufferedAmount(): number {
+    return this.ws?.bufferedAmount ?? 0;
   }
 
   public onConnectionChange(listener: (connected: boolean) => void): void {
@@ -94,6 +142,7 @@ export class SignalingClient {
 
       socket.onmessage = (event) => {
         if (this.ws !== socket) return;
+        this.lastPongAt = Date.now();
         try {
           const msg: SignalMessage = JSON.parse(event.data);
           if (msg.type === 'WELCOME' || msg.type === 'SESSION_RESUMED' ||
@@ -221,11 +270,16 @@ export class SignalingClient {
 
   private startHeartbeat(socket: WebSocket): void {
     this.stopHeartbeat();
+    this.lastPongAt = Date.now();
     this.heartbeatTimer = setInterval(() => {
-      if (this.ws === socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'PING' }));
+      if (this.ws !== socket || socket.readyState !== WebSocket.OPEN) return;
+      if (Date.now() - this.lastPongAt > 35_000) {
+        console.warn('[Signaling] Heartbeat timeout; reconnecting socket');
+        socket.close();
+        return;
       }
-    }, 20_000);
+      socket.send(JSON.stringify({ type: 'PING' }));
+    }, 15_000);
   }
 
   private stopHeartbeat(): void {
@@ -237,6 +291,8 @@ export class SignalingClient {
     this.shouldReconnect = false;
     this.clearReconnectTimer();
     this.stopHeartbeat();
+    this.cleanupNetworkListeners?.();
+    this.cleanupNetworkListeners = null;
     this.connectPromise = null;
     this.statusListener = null;
     const socket = this.ws;

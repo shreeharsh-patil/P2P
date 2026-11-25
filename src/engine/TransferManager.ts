@@ -23,9 +23,13 @@ export class TransferManager {
   private storageWriters: Map<string, StorageWriter> = new Map();
   private resumeManagers: Map<string, ResumeManager> = new Map();
   private backpressureControllers: Map<string, BackpressureController> = new Map();
+  private writeQueues: Map<string, Promise<void>> = new Map();
+  private receivedBytes: Map<string, number> = new Map();
+  private activeSenders: Set<string> = new Set();
 
   // Leave room for the 36-byte framing header under common WebRTC message limits.
   private defaultChunkSize: number = 60 * 1024;
+  private customChunkSize: boolean = false;
   private autoAccept: boolean = false;
   private speedTimer: any = null;
   private lastBytesTransferred: Map<string, { bytes: number; timestamp: number }> = new Map();
@@ -43,6 +47,7 @@ export class TransferManager {
 
   public setChunkSize(bytes: number) {
     this.defaultChunkSize = bytes;
+    this.customChunkSize = true;
   }
 
   public setAutoAccept(enabled: boolean) {
@@ -66,7 +71,7 @@ export class TransferManager {
       const now = Date.now();
       const lastEmit = this.lastProgressEmit.get(id) || 0;
 
-      if (forceEmit || now - lastEmit > 40 || item.progress.percent >= 100) {
+      if (forceEmit || now - lastEmit >= 100 || item.progress.percent >= 100) {
         this.lastProgressEmit.set(id, now);
         if (this.callbacks.onTransferProgress) {
           this.callbacks.onTransferProgress(item);
@@ -110,7 +115,9 @@ export class TransferManager {
    */
   public async offerFile(file: File, relativePath?: string, batchId?: string): Promise<string> {
     const id = Math.random().toString(36).substring(2, 11);
-    const chunkSize = this.defaultChunkSize;
+    const chunkSize = this.customChunkSize
+      ? this.defaultChunkSize
+      : (this.rtc.getOptimalChunkSize?.() ?? this.defaultChunkSize);
     const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
 
     const chunkReader = new ChunkReader(file, chunkSize);
@@ -241,6 +248,7 @@ export class TransferManager {
       this.resumeManagers.set(transferId, resumeMgr);
 
       const startChunkIndex = resumeMgr.getFirstMissingChunkIndex();
+      this.receivedBytes.set(transferId, resumeMgr.getReceivedCount() * item.chunkSize);
 
       // Send FILE_ACCEPT back to sender
       if (!this.rtc.sendControlMessage({
@@ -394,36 +402,51 @@ export class TransferManager {
   }
 
   /**
-   * Sender: Chunk Loop with Backpressure Control
+   * Sender: Chunk Loop with Backpressure Control and Read-Ahead Prefetching
    */
   private async startSendingChunks(transferId: string, startIndex: number) {
+    if (this.activeSenders.has(transferId)) return;
     const item = this.queue.get(transferId);
     const chunkReader = this.chunkReaders.get(transferId);
     if (!item || !chunkReader || !this.rtc.areChannelsOpen()) return;
 
-    if (this.rtc.fileChannel && !this.backpressureControllers.has(transferId)) {
-      this.backpressureControllers.set(
-        transferId,
-        new BackpressureController(this.rtc.fileChannel, item.chunkSize * 2, item.chunkSize)
-      );
-    }
+    this.activeSenders.add(transferId);
 
-    const backpressure = this.backpressureControllers.get(transferId);
-    const totalChunks = chunkReader.getTotalChunks();
-
-    for (let index = startIndex; index < totalChunks; index++) {
-      const currentItem = this.queue.get(transferId);
-      if (!currentItem || currentItem.status !== 'transferring') {
-        break;
+    try {
+      if (this.rtc.fileChannel && !this.backpressureControllers.has(transferId)) {
+        const highWater = Math.max(4 * 1024 * 1024, item.chunkSize * 16);
+        const lowWater = Math.max(1 * 1024 * 1024, item.chunkSize * 4);
+        this.backpressureControllers.set(
+          transferId,
+          new BackpressureController(this.rtc.fileChannel, highWater, lowWater)
+        );
       }
 
-      // Backpressure Check if WebRTC DataChannel is active
-      if (backpressure) {
-        await backpressure.waitIfBuffered();
-      }
+      const backpressure = this.backpressureControllers.get(transferId);
+      const totalChunks = chunkReader.getTotalChunks();
+      let nextChunkPromise = startIndex < totalChunks ? chunkReader.readChunk(startIndex) : null;
 
-      try {
-        const chunk = await chunkReader.readChunk(index);
+      for (let index = startIndex; index < totalChunks; index++) {
+        const currentItem = this.queue.get(transferId);
+        if (!currentItem || currentItem.status !== 'transferring') {
+          break;
+        }
+
+        // Backpressure Check if WebRTC DataChannel is active
+        if (!this.rtc.isWebSocketRelayMode && backpressure) {
+          await backpressure.waitIfBuffered();
+        } else if (this.rtc.isWebSocketRelayMode) {
+          while ((this.rtc.getRelayBufferedAmount?.() ?? 0) > 1024 * 1024) {
+            await new Promise((r) => setTimeout(r, 15));
+          }
+          if (index % 4 === 3) {
+            await new Promise((r) => setTimeout(r, 0));
+          }
+        }
+
+        const chunk = await nextChunkPromise!;
+        nextChunkPromise = index + 1 < totalChunks ? chunkReader.readChunk(index + 1) : null;
+
         const packetBuffer = TransferProtocol.encodePacket(
           transferId,
           chunk.chunkIndex,
@@ -436,7 +459,9 @@ export class TransferManager {
         }
 
         const bytesTransferred = Number(chunk.offset) + chunk.length;
-        const percent = Math.min(100, Math.round((bytesTransferred / item.size) * 100));
+        const percent = item.size > 0
+          ? Math.min(100, Math.round((bytesTransferred / item.size) * 100))
+          : 100;
 
         this.updateQueueItem(transferId, {
           progress: {
@@ -446,96 +471,113 @@ export class TransferManager {
             percent
           }
         }, false);
-      } catch (e: any) {
-        console.error(`Error sending chunk ${index}`, e);
-        this.updateQueueItem(transferId, { status: 'error', error: e.message });
-        break;
       }
+    } catch (e: any) {
+      console.error(`Error sending chunks for ${transferId}`, e);
+      this.updateQueueItem(transferId, { status: 'error', error: e.message });
+    } finally {
+      this.activeSenders.delete(transferId);
     }
   }
 
   /**
-   * Receiver: Handle incoming framed binary chunk packet
+   * Receiver: Handle incoming framed binary chunk packet sequentially per transfer
    */
-  private async handleIncomingChunk(buffer: ArrayBuffer) {
+  private handleIncomingChunk(buffer: ArrayBuffer): void {
+    let packet: ReturnType<typeof TransferProtocol.decodePacket>;
     try {
-      const packet = TransferProtocol.decodePacket(buffer);
-      const { transferId, chunkIndex, offset, payload } = packet;
+      packet = TransferProtocol.decodePacket(buffer);
+    } catch (e) {
+      console.error('Error decoding incoming file chunk', e);
+      return;
+    }
 
-      const item = this.queue.get(transferId);
-      const writer = this.storageWriters.get(transferId);
-      const resumeMgr = this.resumeManagers.get(transferId);
+    const { transferId } = packet;
+    const prevQueue = this.writeQueues.get(transferId) ?? Promise.resolve();
+    const nextQueue = prevQueue
+      .then(() => this.processIncomingPacket(packet))
+      .catch((e: any) => {
+        console.error('Error handling incoming file chunk', e);
+        if (this.queue.has(transferId)) {
+          const message = e instanceof Error ? e.message : 'Unable to write incoming file data.';
+          this.updateQueueItem(transferId, { status: 'error', error: message });
+          this.callbacks.onError?.(transferId, message);
+          void this.storageWriters.get(transferId)?.abort();
+          this.cleanup(transferId);
+        }
+      });
+    this.writeQueues.set(transferId, nextQueue);
+  }
 
-      if (!item || !writer || !resumeMgr || item.status !== 'transferring') return;
+  private async processIncomingPacket(packet: ReturnType<typeof TransferProtocol.decodePacket>): Promise<void> {
+    const { transferId, chunkIndex, offset, payload } = packet;
+    const item = this.queue.get(transferId);
+    const writer = this.storageWriters.get(transferId);
+    const resumeMgr = this.resumeManagers.get(transferId);
 
-      // Progressive Write to Disk/OPFS/IDB
+    if (!item || !writer || !resumeMgr || item.status !== 'transferring') return;
+
+    const alreadyHad = resumeMgr.hasChunk(chunkIndex);
+    if (!alreadyHad) {
       await writer.writeChunk(chunkIndex, offset, payload);
       await resumeMgr.markChunkReceived(chunkIndex);
+      const nextBytes = Math.min(item.size, (this.receivedBytes.get(transferId) || 0) + payload.byteLength);
+      this.receivedBytes.set(transferId, nextBytes);
+    }
 
-      const bytesTransferred = Number(offset) + payload.byteLength;
-      const percent = Math.min(100, Math.round((bytesTransferred / item.size) * 100));
+    const bytesTransferred = this.receivedBytes.get(transferId) || 0;
+    const percent = item.size > 0
+      ? Math.min(100, Math.round((bytesTransferred / item.size) * 100))
+      : 100;
+
+    this.updateQueueItem(transferId, {
+      progress: {
+        ...item.progress,
+        bytesTransferred,
+        chunksTransferred: resumeMgr.getReceivedCount(),
+        percent
+      }
+    }, false);
+
+    // Check if complete
+    if (resumeMgr.isComplete()) {
+      this.updateQueueItem(transferId, { status: 'verifying' });
+
+      const blobOrResult = await writer.close(item.name, item.type);
+      let downloadUrl: string | null = null;
+      let verified = false;
+
+      if (blobOrResult instanceof Blob) {
+        downloadUrl = URL.createObjectURL(blobOrResult);
+        const computedHash = await IntegrityManager.calculateFileHash(
+          new File([blobOrResult], item.name, { type: item.type })
+        );
+        verified = item.sha256 ? IntegrityManager.verifyHash(computedHash, item.sha256) : true;
+      } else {
+        // Direct FS file written directly to user disk
+        verified = true;
+      }
 
       this.updateQueueItem(transferId, {
-        progress: {
-          ...item.progress,
-          bytesTransferred,
-          chunksTransferred: resumeMgr.getReceivedCount(),
-          percent
-        }
-      }, false);
+        status: 'completed',
+        verified,
+        downloadUrl: downloadUrl || undefined,
+        endTime: Date.now()
+      });
 
-      // Check if complete
-      if (resumeMgr.isComplete()) {
-        this.updateQueueItem(transferId, { status: 'verifying' });
+      // Notify sender of verification result
+      this.rtc.sendControlMessage({
+        type: 'VERIFICATION_RESULT',
+        transferId,
+        verified
+      });
 
-        const blobOrResult = await writer.close(item.name, item.type);
-        let downloadUrl: string | null = null;
-        let verified = false;
-
-        if (blobOrResult instanceof Blob) {
-          downloadUrl = URL.createObjectURL(blobOrResult);
-          const computedHash = await IntegrityManager.calculateFileHash(
-            new File([blobOrResult], item.name, { type: item.type })
-          );
-          verified = item.sha256 ? IntegrityManager.verifyHash(computedHash, item.sha256) : true;
-        } else {
-          // Direct FS file written directly to user disk
-          verified = true;
-        }
-
-        this.updateQueueItem(transferId, {
-          status: 'completed',
-          verified,
-          downloadUrl: downloadUrl || undefined,
-          endTime: Date.now()
-        });
-
-        // Notify sender of verification result
-        this.rtc.sendControlMessage({
-          type: 'VERIFICATION_RESULT',
-          transferId,
-          verified
-        });
-
-        if (this.callbacks.onTransferCompleted) {
-          this.callbacks.onTransferCompleted(this.queue.get(transferId)!, downloadUrl);
-        }
-
-        await resumeMgr.clear();
-        this.cleanup(transferId);
+      if (this.callbacks.onTransferCompleted) {
+        this.callbacks.onTransferCompleted(this.queue.get(transferId)!, downloadUrl);
       }
-    } catch (e: any) {
-      console.error('Error handling incoming file chunk', e);
-      const packetTransferId = buffer.byteLength >= 20
-        ? new TextDecoder().decode(new Uint8Array(buffer, 4, 16)).replace(/\0/g, '')
-        : undefined;
-      if (packetTransferId && this.queue.has(packetTransferId)) {
-        const message = e instanceof Error ? e.message : 'Unable to write incoming file data.';
-        this.updateQueueItem(packetTransferId, { status: 'error', error: message });
-        this.callbacks.onError?.(packetTransferId, message);
-        void this.storageWriters.get(packetTransferId)?.abort();
-        this.cleanup(packetTransferId);
-      }
+
+      await resumeMgr.clear();
+      this.cleanup(transferId);
     }
   }
 
@@ -574,10 +616,14 @@ export class TransferManager {
   }
 
   private cleanup(transferId: string) {
+    this.backpressureControllers.get(transferId)?.destroy();
     this.chunkReaders.delete(transferId);
     this.storageWriters.delete(transferId);
     this.resumeManagers.delete(transferId);
     this.backpressureControllers.delete(transferId);
     this.lastBytesTransferred.delete(transferId);
+    this.writeQueues.delete(transferId);
+    this.receivedBytes.delete(transferId);
+    this.activeSenders.delete(transferId);
   }
 }

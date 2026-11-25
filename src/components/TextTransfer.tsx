@@ -15,7 +15,7 @@ interface TextTransferProps {
   onSendText: (text: string) => void;
 }
 
-export const TextTransfer: React.FC<TextTransferProps> = ({
+export const TextTransfer: React.FC<TextTransferProps> = React.memo(({
   messages,
   isConnected,
   onSendText
@@ -181,4 +181,4 @@ export const TextTransfer: React.FC<TextTransferProps> = ({
       )}
     </div>
   );
-};
+});
