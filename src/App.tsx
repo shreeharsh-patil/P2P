@@ -423,10 +423,9 @@ export const App: React.FC = () => {
           webrtcState={webrtcState}
           signalingConnected={signalingConnected}
           sessionId={sessionId}
-          onOpenSettings={() => setIsSettingsModalOpen(true)}
         />
 
-        <main className="flex-1 w-full max-w-[960px] mx-auto py-6 sm:py-8">
+        <main className="flex-1 w-full max-w-[1120px] mx-auto py-6 sm:py-8">
 
           {/* ============ CONNECTED WORKSPACE ============ */}
           {viewState === 'connected' ? (
@@ -538,15 +537,17 @@ export const App: React.FC = () => {
 
           /* ============ LANDING ============ */
           ) : (
-            <div className="space-y-12">
-              <Hero />
-              <LandingActions
-                onCreateSession={handleCreateSession}
-                onSelectJoin={() => setViewState('join')}
-                onJoinSession={handleJoinSession}
-                onOpenQRScanner={() => setIsQRScannerOpen(true)}
-                activeMode="create"
-              />
+            <div className="mx-auto w-full max-w-5xl space-y-12 px-4 py-8 sm:px-6 sm:py-12">
+              <section className="grid items-center gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] lg:gap-12">
+                <Hero />
+                <LandingActions
+                  onCreateSession={handleCreateSession}
+                  onSelectJoin={() => setViewState('join')}
+                  onJoinSession={handleJoinSession}
+                  onOpenQRScanner={() => setIsQRScannerOpen(true)}
+                  activeMode="create"
+                />
+              </section>
               <div id="how-it-works">
                 <HowItWorks />
               </div>

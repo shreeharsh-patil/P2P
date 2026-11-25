@@ -1,4 +1,6 @@
 import React from 'react';
+import { ArrowUpRight } from 'lucide-react';
+import { Card, CardContent } from './ui/card';
 
 export const HowItWorks: React.FC = () => {
   const steps = [
@@ -20,32 +22,32 @@ export const HowItWorks: React.FC = () => {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto w-full px-4 pt-4 space-y-4">
-      <div className="font-mono text-xs text-[#8a8a8a] tracking-widest uppercase">
-        How it works
+    <section className="w-full space-y-4">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-[#ff666b]">How it works</p>
+          <h2 className="mt-2 text-lg font-semibold tracking-tight text-[#f2f2f2]">Three steps. No cloud handoff.</h2>
+        </div>
+        <span className="hidden pb-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[#66666c] sm:inline">Direct device to device</span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {steps.map((step, idx) => (
-          <div
+          <Card
             key={step.num}
-            className="tech-panel p-5 space-y-2 relative border border-[#1c1c22] bg-[#09090b] hover:border-[#ff2b2b]/40 transition-colors"
+            className="group relative overflow-hidden border-white/[0.08] bg-[#0a0a0c]/80 transition-colors hover:border-[#ff3a40]/40 hover:bg-[#0d0d10]"
           >
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-xs font-bold text-[#ff2b2b]">
-                {step.num}
-              </span>
-              <span className="font-mono text-xs text-[#f2f2f2] font-semibold tracking-wider">
-                {step.title}
-              </span>
-            </div>
-
-            <p className="text-xs text-[#8a8a8a] leading-relaxed">
-              {step.desc}
-            </p>
-          </div>
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-[#ff3a40]/25 bg-[#ff2b2b]/[0.07] px-2 font-mono text-[10px] font-semibold text-[#ff777c]">{step.num}</span>
+                <ArrowUpRight className="h-4 w-4 text-[#55555b] transition-colors group-hover:text-[#ff686e]" />
+              </div>
+              <h3 className="mt-5 text-sm font-semibold text-[#f2f2f2]">{step.title}</h3>
+              <p className="mt-1.5 text-xs leading-relaxed text-[#929297]">{step.desc}</p>
+            </CardContent>
+          </Card>
         ))}
       </div>
-    </div>
+    </section>
   );
 };

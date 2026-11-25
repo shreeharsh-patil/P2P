@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { Camera, Link2, ArrowRight } from 'lucide-react';
+import { Camera, Link2, ArrowRight, Plus, ScanLine } from 'lucide-react';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Input } from './ui/input';
 
 interface LandingActionsProps {
   activeMode: 'create' | 'join';
@@ -42,70 +45,56 @@ export const LandingActions: React.FC<LandingActionsProps> = ({
   };
 
   return (
-    <div className="max-w-xl mx-auto w-full space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={onCreateSession}
-          className="py-3.5 bg-[#ff2b2b] hover:bg-[#e51b23] text-white font-mono font-bold text-xs tracking-[0.2em] uppercase rounded-sm shadow-[0_0_18px_rgba(255,43,43,0.3)] transition-all active:scale-[0.98]"
-        >
-          Create Session
-        </button>
-        <button
-          type="button"
-          onClick={onSelectJoin}
-          className={`py-3.5 font-mono font-bold text-xs tracking-[0.2em] uppercase rounded-sm border transition-all active:scale-[0.98] ${
-            activeMode === 'join'
-              ? 'border-[#ff2b2b]/70 text-[#ff2b2b] bg-[#ff2b2b]/5'
-              : 'border-[#2a2a32] text-[#f2f2f2] hover:border-[#ff2b2b]/60 hover:text-[#ff2b2b]'
-          }`}
-        >
-          Join Session
-        </button>
-      </div>
+    <div className="w-full">
+      <Card className="mx-auto w-full max-w-xl overflow-hidden border-white/[0.09] bg-[#0b0b0d]/95 lg:max-w-none">
+        <CardHeader className="space-y-2 border-b border-white/[0.06] px-6 pb-5 pt-6 sm:px-7">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-[#ff666b]">Get started</p>
+          <CardTitle className="text-xl tracking-tight sm:text-2xl">Connect your devices</CardTitle>
+          <CardDescription className="leading-relaxed">Create a private session or join one with a code.</CardDescription>
+        </CardHeader>
 
-      {activeMode === 'join' && (
-        <form onSubmit={handleJoinSubmit} className="tech-panel p-4 bg-[#09090b] border border-[#1c1c22] space-y-3">
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={inputCode}
-              onChange={(e) => setInputCode(e.target.value)}
-              placeholder="ENTER 6-DIGIT CODE"
-              maxLength={10}
-              autoFocus
-              className="flex-1 bg-[#050505] border border-[#1c1c22] focus:border-[#ff2b2b] rounded-sm px-4 py-2.5 text-center font-mono text-lg tracking-[0.2em] text-[#f2f2f2] placeholder:text-[#4a4a4a] focus:outline-none transition-colors"
-            />
-            <button
-              type="button"
-              onClick={onOpenQRScanner}
-              className="p-2.5 bg-[#050505] border border-[#1c1c22] hover:border-[#ff2b2b] text-[#ff2b2b] rounded-sm transition-colors"
-              title="Scan QR Code with camera"
-            >
-              <Camera className="w-5 h-5" />
-            </button>
-          </div>
+        <CardContent className="space-y-3 px-6 pb-6 pt-5 sm:px-7 sm:pb-7">
+          <Button size="lg" onClick={onCreateSession} className="w-full justify-between rounded-lg px-5 font-mono text-xs uppercase tracking-[0.14em]">
+            <span className="flex items-center gap-2"><Plus className="h-4 w-4" /> Create session</span>
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={onSelectJoin}
+            className={`w-full justify-between rounded-lg px-5 font-mono text-xs uppercase tracking-[0.14em] ${activeMode === 'join' ? 'border-[#ff3a40]/65 bg-[#ff2b2b]/[0.06] text-[#ff7277]' : ''}`}
+          >
+            <span className="flex items-center gap-2"><ScanLine className="h-4 w-4" /> Join session</span>
+            <ArrowRight className="h-4 w-4" />
+          </Button>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handlePasteCode}
-              className="px-3 py-2 text-[11px] font-mono text-[#8a8a8a] hover:text-[#f2f2f2] border border-[#26262e] bg-[#141418] hover:bg-[#1a1a20] rounded-sm flex items-center gap-1.5 transition-colors"
-            >
-              <Link2 className="w-3.5 h-3.5" />
-              Paste
-            </button>
-            <button
-              type="submit"
-              disabled={inputCode.trim().length < 6}
-              className="flex-1 py-2 bg-[#ff2b2b] hover:bg-[#e51b23] disabled:opacity-40 disabled:cursor-not-allowed text-white font-mono font-bold text-xs tracking-[0.2em] uppercase rounded-sm flex items-center justify-center gap-2 transition-all"
-            >
-              Connect
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        </form>
-      )}
+          {activeMode === 'join' && (
+            <form onSubmit={handleJoinSubmit} className="space-y-3 border-t border-white/[0.07] pt-4">
+              <div className="flex items-center gap-2">
+                <Input
+                  value={inputCode}
+                  onChange={(e) => setInputCode(e.target.value)}
+                  placeholder="Enter 6-digit code"
+                  maxLength={10}
+                  autoFocus
+                  className="text-center font-mono text-lg tracking-[0.2em]"
+                />
+                <Button type="button" variant="outline" size="icon" onClick={onOpenQRScanner} title="Scan QR Code with camera" aria-label="Scan QR code">
+                  <Camera className="h-5 w-5" />
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button type="button" variant="secondary" onClick={handlePasteCode} className="px-3">
+                  <Link2 className="h-3.5 w-3.5" /> Paste
+                </Button>
+                <Button type="submit" disabled={inputCode.trim().length < 6} className="flex-1 font-mono text-xs uppercase tracking-wider">
+                  Connect <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </form>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

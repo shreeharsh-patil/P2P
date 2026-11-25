@@ -2,8 +2,8 @@ import React from 'react';
 
 export const Hero: React.FC = () => {
   return (
-    <div className="text-center space-y-6 pt-10 pb-2 max-w-3xl mx-auto px-4 animate-fade-in-up">
-      <h1 className="mx-auto block w-full max-w-[460px]">
+    <div className="mx-auto w-full space-y-5 px-2 py-3 text-center animate-fade-in-up lg:mx-0 lg:text-left">
+      <h1 className="mx-auto block w-full max-w-[420px] lg:mx-0">
         <img
           src="/dropit-logo.svg"
           alt="DropIt"
@@ -11,11 +11,11 @@ export const Hero: React.FC = () => {
         />
       </h1>
 
-      <p className="text-xs sm:text-sm font-mono text-[#ff3030] tracking-[0.3em] uppercase">
+      <p className="text-xs font-mono tracking-[0.22em] text-[#ff5b61] uppercase sm:text-sm">
         Private. Direct. Simple.
       </p>
 
-      <p className="text-sm sm:text-base text-[#a0a0a0] max-w-md mx-auto leading-relaxed font-sans">
+      <p className="mx-auto max-w-md text-sm leading-relaxed text-[#a0a0a0] sm:text-base lg:mx-0">
         Send files and text directly between your devices.
       </p>
     </div>
