@@ -79,6 +79,13 @@ export class SignalingClient {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
+  public getHttpBaseUrl(): string {
+    return this.serverUrl
+      .replace(/^wss:/i, 'https:')
+      .replace(/^ws:/i, 'http:')
+      .replace(/\/ws\/?$/i, '');
+  }
+
   public getBufferedAmount(): number {
     return this.ws?.bufferedAmount ?? 0;
   }

@@ -133,6 +133,55 @@ describe('Connection Stability & Transfer Optimizations', () => {
     rtc.close();
   });
 
+  it('falls back to verified WebSocket relay after one ICE restart fails instead of looping', async () => {
+    vi.stubGlobal('RTCPeerConnection', FakePeerConnection);
+    vi.stubGlobal('RTCSessionDescription', class { constructor(public init: any) {} });
+
+    const handlers = new Map<string, Set<(msg: any) => void>>();
+    const sentPayloads: any[] = [];
+    const mockSignaling: any = {
+      isOnline: () => true,
+      getBufferedAmount: () => 0,
+      sendSignal: vi.fn((_target: string, payload: any) => {
+        sentPayloads.push(payload);
+        return true;
+      }),
+      on: (type: string, cb: (msg: any) => void) => {
+        if (!handlers.has(type)) handlers.set(type, new Set());
+        handlers.get(type)!.add(cb);
+      }
+    };
+
+    const states: string[] = [];
+    const rtc = new WebRTCManager(mockSignaling, {
+      onStateChange: (s) => states.push(s)
+    });
+
+    await rtc.initiateConnection('peer-2');
+    const pc1 = (rtc as any).peerConnection as FakePeerConnection;
+    pc1.connectionState = 'failed';
+    pc1.onconnectionstatechange?.();
+
+    // First failure schedules 1 ICE restart after 2.5s without emitting 'closed'
+    await vi.advanceTimersByTimeAsync(2500);
+    const pc2 = (rtc as any).peerConnection as FakePeerConnection;
+    expect(pc2).not.toBe(pc1);
+    expect(states).not.toContain('closed');
+
+    // Second failure immediately probes WebSocket relay instead of looping forever
+    pc2.connectionState = 'failed';
+    pc2.onconnectionstatechange?.();
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(sentPayloads.some((p) => p.isRelayProbe === true)).toBe(true);
+
+    handlers.get('SIGNAL')?.forEach((fn) =>
+      fn({ type: 'SIGNAL', peerId: 'peer-2', payload: { isRelayAck: true } })
+    );
+    expect(rtc.connectionState).toBe('connected');
+    expect(rtc.isWebSocketRelayMode).toBe(true);
+    rtc.close();
+  });
+
   it('round-trips binary chunks over WebSocket relay using compact Base64', () => {
     const handlers = new Map<string, Set<(msg: any) => void>>();
     const sentPayloads: any[] = [];

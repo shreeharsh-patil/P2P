@@ -56,6 +56,10 @@ export class WebRTCManager {
   private disconnectionTimer: any = null;
   private relayProbeTimer: any = null;
   private iceServers: RTCIceServer[] = DEFAULT_ICE_SERVERS;
+  private iceRestartAttempted = false;
+  private offerQueue: Promise<void> = Promise.resolve();
+  private pendingOutgoingOffer: { targetPeerId: string; sdp: RTCSessionDescriptionInit } | null = null;
+  private pendingOutgoingAnswer: { targetPeerId: string; sdp: RTCSessionDescriptionInit } | null = null;
 
   public controlChannel: RTCDataChannel | null = null;
   public fileChannel: RTCDataChannel | null = null;
@@ -83,14 +87,19 @@ export class WebRTCManager {
   }
 
   private async prefetchIceServers(): Promise<void> {
-    if (typeof fetch !== 'function' || typeof window === 'undefined' || !window.location?.origin) return;
+    if (typeof fetch !== 'function') return;
+    const baseUrl = this.signaling.getHttpBaseUrl?.() ||
+      (typeof window !== 'undefined' ? window.location?.origin : '');
+    if (!baseUrl) return;
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timer = controller ? setTimeout(() => controller.abort(), 1500) : null;
+    const timer = controller ? setTimeout(() => controller.abort(), 2500) : null;
     try {
-      const response = await fetch(`${window.location.origin}/api/ice-servers`, {
+      const response = await fetch(`${baseUrl}/api/ice-servers`, {
         signal: controller?.signal
       });
       if (!response.ok) return;
+      const contentType = response.headers?.get?.('content-type') || '';
+      if (!contentType.includes('application/json')) return;
       const data = await response.json();
       if (Array.isArray(data?.iceServers) && data.iceServers.length > 0) {
         this.iceServers = data.iceServers;
@@ -153,6 +162,18 @@ export class WebRTCManager {
 
     if (state === 'connected') {
       this.clearTimers();
+      const pcState = this.peerConnection?.connectionState;
+      const iceState = this.peerConnection?.iceConnectionState;
+      if (
+        this.isWebSocketRelayMode ||
+        pcState === 'connected' ||
+        iceState === 'connected' ||
+        iceState === 'completed'
+      ) {
+        this.iceRestartAttempted = false;
+      }
+      this.pendingOutgoingOffer = null;
+      this.pendingOutgoingAnswer = null;
     }
 
     this.events.onStateChange?.(state);
@@ -167,6 +188,28 @@ export class WebRTCManager {
   }
 
   private setupSignalingListeners() {
+    const flushPendingSignals = () => {
+      if (!this.signaling.isOnline()) return;
+      if (this.pendingOutgoingOffer) {
+        const { targetPeerId, sdp } = this.pendingOutgoingOffer;
+        if (this.signaling.sendSignal(targetPeerId, { type: 'offer', sdp })) {
+          this.pendingOutgoingOffer = null;
+          this.offerSent = true;
+        }
+      }
+      if (this.pendingOutgoingAnswer) {
+        const { targetPeerId, sdp } = this.pendingOutgoingAnswer;
+        if (this.signaling.sendSignal(targetPeerId, { type: 'answer', sdp })) {
+          this.pendingOutgoingAnswer = null;
+          this.answerSent = true;
+        }
+      }
+      this.flushOutgoingIceCandidates();
+    };
+
+    this.signaling.on('WELCOME', flushPendingSignals);
+    this.signaling.on('SESSION_RESUMED', flushPendingSignals);
+
     this.signaling.on('SIGNAL', async (msg) => {
       if (!msg.payload) return;
       const { type, sdp, candidate, isRelayData, isRelayProbe, isRelayAck, controlPayload, fileBufferBase64, fileBufferArray } = msg.payload;
@@ -215,7 +258,9 @@ export class WebRTCManager {
       try {
         if (type === 'offer' && sdp) {
           this.offerReceived = true;
-          await this.handleOffer(sdp, msg.peerId!);
+          this.offerQueue = this.offerQueue
+            .then(() => this.handleOffer(sdp, msg.peerId!))
+            .catch((e) => console.error('[WebRTC] Error handling offer:', e));
         } else if (type === 'answer' && sdp) {
           this.answerReceived = true;
           await this.handleAnswer(sdp);
@@ -229,25 +274,57 @@ export class WebRTCManager {
     });
   }
 
+  private teardownPeerConnection(): void {
+    this.clearTimers();
+    const oldControl = this.controlChannel;
+    const oldFile = this.fileChannel;
+    const oldPc = this.peerConnection;
+    // Clear references first so closing old resources never fires stale state transitions.
+    this.controlChannel = null;
+    this.fileChannel = null;
+    this.peerConnection = null;
+    this.pendingIncomingIceCandidates = [];
+    this.pendingOutgoingIceCandidates = [];
+    this.pendingOutgoingOffer = null;
+    this.pendingOutgoingAnswer = null;
+    this.isWebSocketRelayMode = false;
+    this.iceCandidatesSent = 0;
+    this.iceCandidatesReceived = 0;
+    this.offerSent = false;
+    this.answerSent = false;
+    this.offerReceived = false;
+    this.answerReceived = false;
+    oldControl?.close();
+    oldFile?.close();
+    oldPc?.close();
+  }
+
   public async initiateConnection(targetPeerId: string): Promise<void> {
     console.log(`[WebRTC] Initiating WebRTC offer to target peer: ${targetPeerId}`);
-    // Every fresh handshake needs a fresh PC; a failed PC cannot be reused.
-    if (this.peerConnection) this.close();
+    // Every fresh handshake needs a fresh PC; tear down quietly without emitting 'closed'.
+    this.teardownPeerConnection();
     this.isInitiator = true;
     this.setTargetPeerId(targetPeerId);
     this.createPeerConnection();
+    const activePc = this.peerConnection!;
 
-    this.controlChannel = this.peerConnection!.createDataChannel('controlChannel', { ordered: true });
-    this.fileChannel = this.peerConnection!.createDataChannel('fileChannel', { ordered: true });
+    this.controlChannel = activePc.createDataChannel('controlChannel', { ordered: true });
+    this.fileChannel = activePc.createDataChannel('fileChannel', { ordered: true });
     this.setupControlChannel(this.controlChannel);
     this.setupFileChannel(this.fileChannel);
 
-    const offer = await this.peerConnection!.createOffer();
-    await this.peerConnection!.setLocalDescription(offer);
+    const offer = await activePc.createOffer();
+    if (this.peerConnection !== activePc) return;
+    await activePc.setLocalDescription(offer);
+    if (this.peerConnection !== activePc) return;
 
     console.log(`[WebRTC] Sending SDP offer to ${targetPeerId}`);
-    this.signaling.sendSignal(targetPeerId, { type: 'offer', sdp: offer });
-    this.offerSent = true;
+    if (this.signaling.sendSignal(targetPeerId, { type: 'offer', sdp: offer })) {
+      this.offerSent = true;
+      this.pendingOutgoingOffer = null;
+    } else {
+      this.pendingOutgoingOffer = { targetPeerId, sdp: offer };
+    }
     this.flushOutgoingIceCandidates();
     this.startConnectionTimeout();
   }
@@ -341,14 +418,34 @@ export class WebRTCManager {
   }
 
   private handleChannelReadiness(): void {
+    const pcState = this.peerConnection?.connectionState;
+    const iceState = this.peerConnection?.iceConnectionState;
+    if (pcState === 'failed' || pcState === 'closed' || pcState === 'disconnected' || iceState === 'failed') {
+      return;
+    }
     if (this.controlChannel?.readyState === 'open' &&
         this.fileChannel?.readyState === 'open') {
       this.isWebSocketRelayMode = false;
       if (this.connectionState !== 'connected') {
         this.updateState('connected');
         this.events.onChannelReady?.();
+      } else if (pcState === 'connected' || iceState === 'connected' || iceState === 'completed') {
+        this.iceRestartAttempted = false;
       }
     }
+  }
+
+  private isTransportHealthy(): boolean {
+    if (this.isWebSocketRelayMode) {
+      return this.signaling.isOnline();
+    }
+    const pcState = this.peerConnection?.connectionState;
+    const iceState = this.peerConnection?.iceConnectionState;
+    const channelsOpen =
+      this.controlChannel?.readyState === 'open' &&
+      this.fileChannel?.readyState === 'open';
+    if (!channelsOpen) return false;
+    return pcState === 'connected' || iceState === 'connected' || iceState === 'completed';
   }
 
   private scheduleDisconnectGrace(): void {
@@ -356,12 +453,7 @@ export class WebRTCManager {
     // Wait briefly before surfacing transient ICE 'disconnected' hiccups.
     this.disconnectGraceTimer = setTimeout(() => {
       this.disconnectGraceTimer = null;
-      const pcState = this.peerConnection?.connectionState;
-      const iceState = this.peerConnection?.iceConnectionState;
-      if (
-        (pcState === 'connected' || iceState === 'connected' || iceState === 'completed') &&
-        this.areChannelsOpen()
-      ) {
+      if (this.isTransportHealthy()) {
         return;
       }
       this.scheduleRelayFallback();
@@ -369,7 +461,7 @@ export class WebRTCManager {
   }
 
   private probeRelay(): void {
-    if (this.areChannelsOpen()) return;
+    if (this.isTransportHealthy()) return;
     if (!this.targetPeerId || !this.signaling.isOnline()) {
       this.updateState('disconnected');
       return;
@@ -379,7 +471,7 @@ export class WebRTCManager {
     if (this.relayProbeTimer) clearTimeout(this.relayProbeTimer);
     this.relayProbeTimer = setTimeout(() => {
       this.relayProbeTimer = null;
-      if (!this.areChannelsOpen()) this.updateState('failed');
+      if (!this.isTransportHealthy()) this.updateState('failed');
     }, 8_000);
   }
 
@@ -392,11 +484,14 @@ export class WebRTCManager {
     this.updateState('disconnected');
     this.disconnectionTimer = setTimeout(() => {
       this.disconnectionTimer = null;
-      if (this.areChannelsOpen()) return;
-      if (this.targetPeerId && this.signaling.isOnline()) {
+      if (this.isTransportHealthy()) return;
+      if (!this.iceRestartAttempted && this.targetPeerId && this.signaling.isOnline()) {
+        this.iceRestartAttempted = true;
         if (this.isInitiator) {
-          void this.initiateConnection(this.targetPeerId).catch((error) =>
-            console.warn('[WebRTC] Renegotiation failed', error));
+          void this.initiateConnection(this.targetPeerId).catch((error) => {
+            console.warn('[WebRTC] Renegotiation failed; falling back to relay', error);
+            this.probeRelay();
+          });
         } else {
           this.signaling.sendSignal(this.targetPeerId, { type: 'restart-request' });
           this.startConnectionTimeout();
@@ -404,7 +499,7 @@ export class WebRTCManager {
       } else {
         this.probeRelay();
       }
-    }, 4_000);
+    }, 2_500);
   }
 
   private flushOutgoingIceCandidates() {
@@ -426,20 +521,29 @@ export class WebRTCManager {
 
   private async handleOffer(sdp: RTCSessionDescriptionInit, remotePeerId: string) {
     console.log(`[WebRTC] Handling SDP offer from ${remotePeerId}...`);
-    if (this.peerConnection) this.close();
+    this.teardownPeerConnection();
     this.isInitiator = false;
     this.setTargetPeerId(remotePeerId);
     this.createPeerConnection();
+    const activePc = this.peerConnection!;
 
-    await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(sdp));
+    await activePc.setRemoteDescription(new RTCSessionDescription(sdp));
+    if (this.peerConnection !== activePc) return;
     await this.processPendingIncomingIceCandidates();
+    if (this.peerConnection !== activePc) return;
 
-    const answer = await this.peerConnection!.createAnswer();
-    await this.peerConnection!.setLocalDescription(answer);
+    const answer = await activePc.createAnswer();
+    if (this.peerConnection !== activePc) return;
+    await activePc.setLocalDescription(answer);
+    if (this.peerConnection !== activePc) return;
 
     console.log(`[WebRTC] Sending SDP answer to ${remotePeerId}`);
-    this.signaling.sendSignal(remotePeerId, { type: 'answer', sdp: answer });
-    this.answerSent = true;
+    if (this.signaling.sendSignal(remotePeerId, { type: 'answer', sdp: answer })) {
+      this.answerSent = true;
+      this.pendingOutgoingAnswer = null;
+    } else {
+      this.pendingOutgoingAnswer = { targetPeerId: remotePeerId, sdp: answer };
+    }
     this.flushOutgoingIceCandidates();
     this.startConnectionTimeout();
   }
@@ -595,29 +699,21 @@ export class WebRTCManager {
   }
 
   public areChannelsOpen(): boolean {
-    return (this.controlChannel?.readyState === 'open' &&
-            this.fileChannel?.readyState === 'open') ||
-      (this.isWebSocketRelayMode && this.signaling.isOnline());
+    const pcState = this.peerConnection?.connectionState;
+    const iceState = this.peerConnection?.iceConnectionState;
+    const directHealthy =
+      this.controlChannel?.readyState === 'open' &&
+      this.fileChannel?.readyState === 'open' &&
+      pcState !== 'failed' &&
+      pcState !== 'closed' &&
+      iceState !== 'failed';
+    return directHealthy || (this.isWebSocketRelayMode && this.signaling.isOnline());
   }
 
   public close(): void {
-    this.clearTimers();
-    this.controlChannel?.close();
-    this.fileChannel?.close();
-    this.peerConnection?.close();
-    this.controlChannel = null;
-    this.fileChannel = null;
-    this.peerConnection = null;
-    this.pendingIncomingIceCandidates = [];
-    this.pendingOutgoingIceCandidates = [];
+    this.teardownPeerConnection();
     this.targetPeerId = null;
-    this.isWebSocketRelayMode = false;
-    this.iceCandidatesSent = 0;
-    this.iceCandidatesReceived = 0;
-    this.offerSent = false;
-    this.answerSent = false;
-    this.offerReceived = false;
-    this.answerReceived = false;
+    this.iceRestartAttempted = false;
     this.updateState('closed');
   }
 }

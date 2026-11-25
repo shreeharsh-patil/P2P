@@ -16,8 +16,9 @@ export const JoinScreen: React.FC<JoinScreenProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputCode.trim().length >= 6) {
-      onJoinSession(inputCode.trim());
+    const normalized = inputCode.trim().replace(/[\s-]/g, '');
+    if (normalized.length >= 6) {
+      onJoinSession(normalized);
     }
   };
 
@@ -25,11 +26,11 @@ export const JoinScreen: React.FC<JoinScreenProps> = ({
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
-        const match = text.match(/\b\d{6}\b/) || text.match(/join=([A-[#a-z0-9-]+)/i);
+        const match = text.match(/\b\d{6}\b/) || text.match(/join=([A-Za-z0-9-]+)/i);
         if (match) {
-          setInputCode(match[1] || match[0]);
+          setInputCode((match[1] || match[0]).replace(/[\s-]/g, ''));
         } else {
-          setInputCode(text.trim());
+          setInputCode(text.trim().replace(/[\s-]/g, ''));
         }
       }
     } catch (e) {}

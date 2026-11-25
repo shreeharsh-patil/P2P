@@ -3,6 +3,9 @@ import { AnimatedBackground } from './components/AnimatedBackground';
 import { TopBar } from './components/TopBar';
 import { Hero } from './components/Hero';
 import { LandingActions } from './components/LandingActions';
+import { HostScreen } from './components/HostScreen';
+import { JoinScreen } from './components/JoinScreen';
+import { ConnectedScreen } from './components/ConnectedScreen';
 import { Footer } from './components/Footer';
 import { Toast, ToastMessage } from './components/Toast';
 import { TextMessageItem } from './components/TextTransfer';
@@ -15,9 +18,6 @@ import { sounds } from './utils/audio';
 
 type ViewState = 'landing' | 'host' | 'join' | 'waiting' | 'connected' | 'failed';
 
-const HostScreen = lazy(() => import('./components/HostScreen').then((module) => ({ default: module.HostScreen })));
-const JoinScreen = lazy(() => import('./components/JoinScreen').then((module) => ({ default: module.JoinScreen })));
-const ConnectedScreen = lazy(() => import('./components/ConnectedScreen').then((module) => ({ default: module.ConnectedScreen })));
 const QRCodeModal = lazy(() => import('./components/QRCodeModal').then((module) => ({ default: module.QRCodeModal })));
 const QRScannerModal = lazy(() => import('./components/QRScannerModal').then((module) => ({ default: module.QRScannerModal })));
 
@@ -128,11 +128,15 @@ export const App: React.FC = () => {
       setViewState('waiting');
       showToast('info', `AUTO-JOINING SESSION #${joinCode}...`);
       signaling.joinSession(joinCode);
-      // Clean URL bar to prevent reload loop
-      try {
-        window.history.replaceState({}, document.title, window.location.pathname);
-      } catch (e) {}
     }
+
+    const cleanUrlQuery = () => {
+      try {
+        if (window.location.search || window.location.hash) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } catch (e) {}
+    };
 
     signaling.onConnectionChange(setSignalingConnected);
     signaling.connect().catch((err) => {
@@ -150,6 +154,7 @@ export const App: React.FC = () => {
 
     signaling.on('SESSION_JOINED', (msg) => {
       // Client confirmed to have joined the session — now wait for host's WebRTC offer
+      cleanUrlQuery();
       if (msg.sessionId) {
         roleRef.current = 'join';
         setSessionId(msg.sessionId);
@@ -258,16 +263,18 @@ export const App: React.FC = () => {
   };
 
   const handleJoinSession = (code: string) => {
-    const trimmedCode = code.trim();
-    if (!trimmedCode) return;
+    const raw = code.trim();
+    const urlMatch = raw.match(/join=([A-Za-z0-9-]+)/i) || raw.match(/\b(\d{6})\b/);
+    const normalizedCode = (urlMatch ? urlMatch[1] : raw).replace(/[\s-]/g, '');
+    if (!normalizedCode) return;
     if (signalingRef.current) {
       rtcRef.current?.close();
       transferRef.current?.resetSession();
       roleRef.current = 'join';
-      setSessionId(trimmedCode);
+      setSessionId(normalizedCode);
       setViewState('waiting');
-      signalingRef.current.joinSession(trimmedCode);
-      showToast('info', `JOINING SESSION #${trimmedCode}...`);
+      signalingRef.current.joinSession(normalizedCode);
+      showToast('info', `JOINING SESSION #${normalizedCode}...`);
     }
   };
 
@@ -414,8 +421,7 @@ export const App: React.FC = () => {
         />
 
         <main className="flex-1 w-full max-w-[1120px] mx-auto py-6 sm:py-8">
-          <Suspense fallback={null}>
-            {/* ============ CONNECTED WORKSPACE ============ */}
+          {/* ============ CONNECTED WORKSPACE ============ */}
             {viewState === 'connected' ? (
               <ConnectedScreen
                 queue={queue}
@@ -536,7 +542,6 @@ export const App: React.FC = () => {
                 />
               </div>
             )}
-          </Suspense>
         </main>
 
         <Footer />
