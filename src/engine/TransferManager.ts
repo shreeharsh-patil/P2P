@@ -20,6 +20,10 @@ export interface TransferManagerCallbacks {
   onOfferReceived?: (item: TransferItem) => void;
 }
 
+function canCancel(item: TransferItem): boolean {
+  return item.status !== 'completed' && item.status !== 'cancelled' && item.status !== 'error';
+}
+
 export class TransferManager {
   private rtc: WebRTCManager;
   private callbacks: TransferManagerCallbacks = {};
@@ -27,7 +31,7 @@ export class TransferManager {
   private chunkReaders: Map<string, ChunkReader> = new Map();
   private storageWriters: Map<string, StorageWriter> = new Map();
   private resumeManagers: Map<string, ResumeManager> = new Map();
-  private backpressureControllers: Map<string, BackpressureController> = new Map();
+  private backpressure: { channel: RTCDataChannel; controller: BackpressureController } | null = null;
   private writeQueues: Map<string, Promise<void>> = new Map();
   private receivedBytes: Map<string, number> = new Map();
   private activeSenders: Set<string> = new Set();
@@ -43,6 +47,7 @@ export class TransferManager {
   private customChunkSize: boolean = false;
   private autoAccept: boolean = false;
   private speedTimer: any = null;
+  private queueUpdateTimer: ReturnType<typeof setTimeout> | null = null;
   private lastBytesTransferred: Map<string, { bytes: number; timestamp: number }> = new Map();
 
   constructor(rtc: WebRTCManager, callbacks: TransferManagerCallbacks = {}) {
@@ -88,23 +93,35 @@ export class TransferManager {
           this.callbacks.onTransferProgress(item);
         }
         if (this.callbacks.onQueueUpdated) {
-          this.callbacks.onQueueUpdated(this.getQueue());
+          if (forceEmit) {
+            this.emitQueue();
+          } else if (this.queueUpdateTimer === null) {
+            this.queueUpdateTimer = setTimeout(() => this.emitQueue(), 100);
+          }
         }
       }
     }
   }
 
+  private emitQueue(): void {
+    if (this.queueUpdateTimer !== null) clearTimeout(this.queueUpdateTimer);
+    this.queueUpdateTimer = null;
+    this.callbacks.onQueueUpdated?.(this.getQueue());
+  }
+
   public resetSession(): void {
     this.sessionGeneration++;
     // A manual session leave must not permanently stop the speed timer or event listeners.
-    for (const id of Array.from(this.queue.keys())) {
+    for (const [id, item] of this.queue) {
+      if (item.downloadUrl) URL.revokeObjectURL(item.downloadUrl);
       void this.storageWriters.get(id)?.abort();
       this.cleanup(id);
     }
     this.queue.clear();
+    this.getBackpressure(null);
     this.lastBytesTransferred.clear();
     this.lastProgressEmit.clear();
-    this.callbacks.onQueueUpdated?.([]);
+    this.emitQueue();
   }
 
   public destroy() {
@@ -173,9 +190,7 @@ export class TransferManager {
     };
 
     this.queue.set(id, item);
-    if (this.callbacks.onQueueUpdated) {
-      this.callbacks.onQueueUpdated(this.getQueue());
-    }
+    this.emitQueue();
 
     try {
       meta.sha256 = await IntegrityManager.calculateFileHash(file);
@@ -427,7 +442,7 @@ export class TransferManager {
 
   public cancelTransfer(transferId: string): void {
     const item = this.queue.get(transferId);
-    if (item) {
+    if (item && canCancel(item)) {
       this.updateQueueItem(transferId, { status: 'cancelled' });
       this.rtc.sendControlMessage({ type: 'CANCEL_TRANSFER', transferId });
       void this.storageWriters.get(transferId)?.abort();
@@ -465,7 +480,7 @@ export class TransferManager {
           }
         };
         this.queue.set(msg.transferId, item);
-        if (this.callbacks.onQueueUpdated) this.callbacks.onQueueUpdated(this.getQueue());
+        this.emitQueue();
         if (this.callbacks.onOfferReceived) this.callbacks.onOfferReceived(item);
 
         if (this.autoAccept) {
@@ -489,8 +504,11 @@ export class TransferManager {
       }
 
       case 'FILE_REJECT': {
-        this.updateQueueItem(msg.transferId, { status: 'cancelled', error: 'Receiver declined file transfer' });
-        this.cleanup(msg.transferId);
+        const item = this.queue.get(msg.transferId);
+        if (item?.direction === 'upload' && item.status === 'offering') {
+          this.updateQueueItem(msg.transferId, { status: 'cancelled', error: 'Receiver declined file transfer' });
+          this.cleanup(msg.transferId);
+        }
         break;
       }
 
@@ -516,6 +534,8 @@ export class TransferManager {
       }
 
       case 'CANCEL_TRANSFER': {
+        const item = this.queue.get(msg.transferId);
+        if (!item || !canCancel(item)) break;
         this.updateQueueItem(msg.transferId, { status: 'cancelled', error: 'Transfer cancelled by peer' });
         void this.storageWriters.get(msg.transferId)?.abort();
         this.cleanup(msg.transferId);
@@ -555,6 +575,13 @@ export class TransferManager {
   /**
    * Sender: Chunk loop with backpressure and reconnect handling.
    */
+  private getBackpressure(channel: RTCDataChannel | null): BackpressureController | null {
+    if (this.backpressure?.channel === channel) return this.backpressure.controller;
+    this.backpressure?.controller.destroy();
+    this.backpressure = channel ? { channel, controller: new BackpressureController(channel) } : null;
+    return this.backpressure?.controller ?? null;
+  }
+
   private async startSendingChunks(transferId: string, startIndex: number, deadline: number) {
     const item = this.queue.get(transferId);
     const chunkReader = this.chunkReaders.get(transferId);
@@ -566,29 +593,30 @@ export class TransferManager {
 
     try {
       const totalChunks = chunkReader.getTotalChunks();
-      let channel: RTCDataChannel | null = null;
+      // Latch read errors so a cancelled transfer cannot leave a rejected prefetch behind.
+      const readChunk = (index: number) => chunkReader.readChunk(index).then(
+        (chunk) => ({ chunk }),
+        (error: unknown) => ({ error })
+      );
+      let nextRead = startIndex < totalChunks ? readChunk(startIndex) : null;
 
-      for (let index = startIndex; index < totalChunks; index++) {
+      for (let index = startIndex; nextRead !== null; index++) {
         if (!canContinue()) return;
-        const chunk = await chunkReader.readChunk(index);
+        const result = await nextRead;
         if (!canContinue()) return;
+        if ('error' in result) throw result.error;
+        const { chunk } = result;
+        nextRead = index + 1 < totalChunks ? readChunk(index + 1) : null;
 
-        if (channel !== this.rtc.fileChannel) {
-          this.backpressureControllers.get(transferId)?.destroy();
-          this.backpressureControllers.delete(transferId);
-          channel = this.rtc.fileChannel;
-          if (channel) this.backpressureControllers.set(transferId, new BackpressureController(channel));
-        }
-        if (this.rtc.isWebSocketRelayMode) {
-          while (canContinue() && this.rtc.areChannelsOpen() &&
-                 (this.rtc.getRelayBufferedAmount?.() ?? 0) > 1024 * 1024) {
+        while (canContinue() && this.rtc.areChannelsOpen()) {
+          if (this.rtc.isWebSocketRelayMode) {
+            if (this.rtc.getRelayBufferedAmount() <= 1024 * 1024) break;
             await new Promise((r) => setTimeout(r, 15));
+          } else {
+            const controller = this.getBackpressure(this.rtc.fileChannel);
+            if (!controller?.isBuffered()) break;
+            await controller.waitIfBuffered();
           }
-          if (index % 4 === 3) {
-            await new Promise((r) => setTimeout(r, 0));
-          }
-        } else {
-          await this.backpressureControllers.get(transferId)?.waitIfBuffered();
         }
         if (!canContinue()) return;
 
@@ -629,8 +657,6 @@ export class TransferManager {
         this.rtc.sendControlMessage({ type: 'CANCEL_TRANSFER', transferId });
       }
     } finally {
-      this.backpressureControllers.get(transferId)?.destroy();
-      this.backpressureControllers.delete(transferId);
       this.activeSenders.delete(transferId);
     }
   }
@@ -786,7 +812,7 @@ export class TransferManager {
                   speed: currentSpeed,
                   eta
                 }
-              });
+              }, false);
             }
           }
           this.lastBytesTransferred.set(id, { bytes: item.progress.bytesTransferred, timestamp: now });
@@ -804,11 +830,9 @@ export class TransferManager {
       clearTimeout(this.acceptRetryTimer);
       this.acceptRetryTimer = null;
     }
-    this.backpressureControllers.get(transferId)?.destroy();
     this.chunkReaders.delete(transferId);
     this.storageWriters.delete(transferId);
     this.resumeManagers.delete(transferId);
-    this.backpressureControllers.delete(transferId);
     this.lastBytesTransferred.delete(transferId);
     this.writeQueues.delete(transferId);
     this.receivedBytes.delete(transferId);

@@ -69,6 +69,7 @@ describe('Connection Stability & Transfer Optimizations', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
@@ -89,6 +90,23 @@ describe('Connection Stability & Transfer Optimizations', () => {
     await waitPromise;
 
     expect(clearSpy).toHaveBeenCalled();
+    controller.destroy();
+  });
+
+  it('shares one drain poll across concurrent senders and releases it on close', async () => {
+    const channel = new FakeDataChannel();
+    channel.bufferedAmount = 5 * 1024 * 1024;
+    const controller = new BackpressureController(channel as unknown as RTCDataChannel);
+
+    const waitA = controller.waitIfBuffered();
+    const waitB = controller.waitIfBuffered();
+    expect(waitA).toBe(waitB);
+    expect(vi.getTimerCount()).toBe(1);
+
+    channel.close();
+    await vi.advanceTimersByTimeAsync(10);
+    await Promise.all([waitA, waitB]);
+    expect(vi.getTimerCount()).toBe(0);
     controller.destroy();
   });
 

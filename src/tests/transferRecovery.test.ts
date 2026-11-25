@@ -159,4 +159,19 @@ describe('File transfer recovery', () => {
     ]);
     expect(receiver.manager.getQueue()).toMatchObject([{ name: 'available.txt', status: 'completed' }]);
   });
+
+  it('keeps verified downloads available after a bulk cancel or a late cancel message', async () => {
+    const id = await sender.manager.offerFile(new File(['abc'], 'saved.txt'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(receiver.manager.getQueue()[0].status).toBe('completed');
+
+    sender.manager.cancelAll();
+    receiver.manager.cancelAll();
+    receiver.events.onControlMessage?.({ type: 'CANCEL_TRANSFER', transferId: id });
+    sender.events.onControlMessage?.({ type: 'FILE_REJECT', transferId: id });
+
+    expect(sender.manager.getQueue()[0].status).toBe('completed');
+    expect(receiver.manager.getQueue()[0]).toMatchObject({ status: 'completed', verified: true });
+    expect(await receiver.manager.getQueue()[0].downloadBlob!.text()).toBe('abc');
+  });
 });

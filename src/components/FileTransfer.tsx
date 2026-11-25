@@ -95,6 +95,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
   const [queueQuery, setQueueQuery] = useState('');
   const [queueSort, setQueueSort] = useState<QueueSort>('recent');
   const [isZipping, setIsZipping] = useState(false);
+  const [zipError, setZipError] = useState('');
 
   const openFilePicker = () => {
     if (canTransfer && fileInputRef.current) {
@@ -196,34 +197,22 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
 
   // Download all completed items as a structured ZIP archive
   const handleDownloadAllAsZip = async () => {
-    const completedItems = queue.filter((item) => item.status === 'completed');
-    if (completedItems.length === 0 || isZipping) return;
+    const zipEntries = queue.flatMap((item) => {
+      const data = item.downloadBlob ?? item.file;
+      return item.status === 'completed' && data ? [{ name: item.relativePath || item.name, data }] : [];
+    });
+    if (zipEntries.length === 0 || isZipping) return;
 
     setIsZipping(true);
+    setZipError('');
     try {
-      const zipEntries: { name: string; data: Blob }[] = [];
-
-      for (const item of completedItems) {
-        if (item.downloadUrl) {
-          const resp = await fetch(item.downloadUrl);
-          const blob = await resp.blob();
-          const entryPath = item.relativePath || item.name;
-          zipEntries.push({ name: entryPath, data: blob });
-        } else if (item.file) {
-          const entryPath = item.relativePath || item.name;
-          zipEntries.push({ name: entryPath, data: item.file });
-        }
-      }
-
-      if (zipEntries.length > 0) {
-        const zipBlob = await ZipStreamer.createZip(zipEntries);
-        const zipUrl = URL.createObjectURL(zipBlob);
-        const zipName = `dropit_bundle_${new Date().toISOString().slice(0, 10)}.zip`;
-        handleDownloadClick(zipUrl, zipName);
-        setTimeout(() => URL.revokeObjectURL(zipUrl), 30000);
-      }
-    } catch (err) {
-      console.error('Failed to create ZIP bundle', err);
+      const zipBlob = await ZipStreamer.createZip(zipEntries);
+      const zipUrl = URL.createObjectURL(zipBlob);
+      const zipName = `dropit_bundle_${new Date().toISOString().slice(0, 10)}.zip`;
+      handleDownloadClick(zipUrl, zipName);
+      setTimeout(() => URL.revokeObjectURL(zipUrl), 30000);
+    } catch (error) {
+      setZipError(error instanceof Error ? error.message : 'Could not create the ZIP. Try downloading the files individually.');
     } finally {
       setIsZipping(false);
     }
@@ -233,10 +222,12 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
   const metrics = useMemo(() => {
     const total = queue.length;
     const completed = queue.filter((i) => i.status === 'completed').length;
+    const downloadable = queue.filter((i) => i.status === 'completed' && (i.downloadBlob || i.file)).length;
     const active = queue.filter((i) => i.status === 'transferring').length;
     const paused = queue.filter((i) => i.status === 'paused').length;
     const incomingOffers = queue.filter((i) => i.status === 'offering' && i.direction === 'download').length;
     const pendingOffers = queue.filter((i) => i.status === 'offering' || i.status === 'queued').length;
+    const cancellable = active > 0 || paused > 0 || pendingOffers > 0 || queue.some((i) => i.status === 'verifying');
 
     const totalBytes = queue.reduce((acc, i) => acc + i.size, 0);
     const transferredBytes = queue.reduce((acc, i) => acc + i.progress.bytesTransferred, 0);
@@ -251,8 +242,10 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
     return {
       total,
       completed,
+      downloadable,
       active,
       paused,
+      cancellable,
       incomingOffers,
       pendingOffers,
       totalBytes,
@@ -413,6 +406,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
           {dropWarning}
         </p>
       )}
+      {zipError && <p role="status" className="text-xs text-rose-300">{zipError}</p>}
 
       {/* TRANSFERS & BATCH CONTROLS */}
       <div className="space-y-4 font-mono">
@@ -483,7 +477,7 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
               </button>
             )}
 
-            {metrics.completed > 0 && (
+            {metrics.downloadable > 0 && (
               <button
                 onClick={handleDownloadAllAsZip}
                 disabled={isZipping}
@@ -491,15 +485,15 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
                 title="Download all completed files packed in a ZIP archive"
               >
                 <Package className="w-3.5 h-3.5" />
-                {isZipping ? 'Packaging ZIP...' : `Download ZIP (${metrics.completed})`}
+                {isZipping ? 'Packaging ZIP...' : `Download ZIP (${metrics.downloadable})`}
               </button>
             )}
 
-            {queue.length > 0 && onCancelAll && (
+            {metrics.cancellable && onCancelAll && (
               <button
                 onClick={onCancelAll}
                 className="p-1 text-[#666] hover:text-rose-400 transition-colors"
-                title="Clear / Cancel All"
+                title="Cancel all pending and active transfers"
               >
                 <XCircle className="w-4 h-4" />
               </button>

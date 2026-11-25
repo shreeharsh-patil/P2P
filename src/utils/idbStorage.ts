@@ -8,7 +8,7 @@ const STORE_TRANSFERS = 'transfers';
 const STORE_CHUNKS = 'chunk_cache';
 
 const inMemoryStore = new Map<string, any>();
-const inMemoryChunks = new Map<string, Uint8Array>();
+const inMemoryChunks = new Map<string, Map<number, Uint8Array>>();
 
 export class IDBStorage {
   private static dbPromise: Promise<IDBDatabase> | null = null;
@@ -77,7 +77,12 @@ export class IDBStorage {
     const db = await this.getDB();
     if (!db) {
       for (const entry of entries) {
-        inMemoryChunks.set(`${entry.transferId}_${entry.chunkIndex}`, entry.data);
+        let chunks = inMemoryChunks.get(entry.transferId);
+        if (!chunks) {
+          chunks = new Map();
+          inMemoryChunks.set(entry.transferId, chunks);
+        }
+        chunks.set(entry.chunkIndex, entry.data);
       }
       return;
     }
@@ -98,45 +103,53 @@ export class IDBStorage {
   }
 
   public static async getChunk(transferId: string, chunkIndex: number): Promise<Uint8Array | null> {
+    const [chunk] = await this.getChunks(transferId, chunkIndex, 1);
+    return chunk;
+  }
+
+  public static async getChunks(transferId: string, start: number, count: number): Promise<(Uint8Array | null)[]> {
     const db = await this.getDB();
-    const key = `${transferId}_${chunkIndex}`;
+    const chunks = Array<Uint8Array | null>(count).fill(null);
     if (!db) {
-      return inMemoryChunks.get(key) || null;
+      const cached = inMemoryChunks.get(transferId);
+      for (let i = 0; i < count; i++) chunks[i] = cached?.get(start + i) ?? null;
+      return chunks;
     }
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_CHUNKS, 'readonly');
-      const req = tx.objectStore(STORE_CHUNKS).get(key);
-      req.onsuccess = () => resolve(req.result ? req.result.data : null);
-      req.onerror = () => reject(req.error);
+      const store = tx.objectStore(STORE_CHUNKS);
+      for (let i = 0; i < count; i++) {
+        const req = store.get(`${transferId}_${start + i}`);
+        req.onsuccess = () => { chunks[i] = req.result?.data ?? null; };
+      }
+      tx.oncomplete = () => resolve(chunks);
+      tx.onabort = () => reject(tx.error ?? new Error('Could not read saved file chunks.'));
     });
   }
 
   public static async clearTransferChunks(transferId: string): Promise<void> {
     const db = await this.getDB();
     if (!db) {
-      for (const k of Array.from(inMemoryChunks.keys())) {
-        if (k.startsWith(`${transferId}_`)) {
-          inMemoryChunks.delete(k);
-        }
-      }
+      inMemoryChunks.delete(transferId);
       inMemoryStore.delete(transferId);
       return;
     }
     return new Promise((resolve, reject) => {
       const tx = db.transaction([STORE_CHUNKS, STORE_TRANSFERS], 'readwrite');
+      tx.objectStore(STORE_TRANSFERS).delete(transferId);
+      const prefix = `${transferId}_`;
       const chunkStore = tx.objectStore(STORE_CHUNKS);
-      const index = chunkStore.openCursor();
-      index.onsuccess = (e) => {
-        const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
+      const request = chunkStore.openKeyCursor(IDBKeyRange.bound(prefix, `${prefix}\uffff`));
+      request.onsuccess = () => {
+        const cursor = request.result;
         if (cursor) {
-          if (cursor.value.transferId === transferId) {
-            cursor.delete();
-          }
+          const chunkIndex = String(cursor.primaryKey).slice(prefix.length);
+          if (/^\d+$/.test(chunkIndex)) chunkStore.delete(cursor.primaryKey);
           cursor.continue();
         }
       };
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error ?? new Error('Could not clear saved file chunks.'));
     });
   }
 }

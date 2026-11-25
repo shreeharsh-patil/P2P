@@ -10,9 +10,6 @@ export class IntegrityManager {
     file: File,
     onProgress?: (percent: number) => void
   ): Promise<string> {
-    const chunkSize = 2 * 1024 * 1024; // 2MB read blocks for hash computation
-    const totalChunks = Math.ceil(file.size / chunkSize);
-    
     // For small files (< 16MB), compute hash in one pass
     if (file.size < 16 * 1024 * 1024) {
       const buffer = await file.arrayBuffer();
@@ -30,21 +27,10 @@ export class IntegrityManager {
     const midSlice = file.slice(Math.floor(fileSize / 2), Math.floor(fileSize / 2) + sampleSize);
     const endSlice = file.slice(Math.max(0, fileSize - sampleSize), fileSize);
 
-    const [startBuf, midBuf, endBuf] = await Promise.all([
-      startSlice.arrayBuffer(),
-      midSlice.arrayBuffer(),
-      endSlice.arrayBuffer()
-    ]);
-
-    const compositeBuffer = new Uint8Array(startBuf.byteLength + midBuf.byteLength + endBuf.byteLength + 8);
-    compositeBuffer.set(new Uint8Array(startBuf), 0);
-    compositeBuffer.set(new Uint8Array(midBuf), startBuf.byteLength);
-    compositeBuffer.set(new Uint8Array(endBuf), startBuf.byteLength + midBuf.byteLength);
-
-    const view = new DataView(compositeBuffer.buffer);
-    view.setBigUint64(startBuf.byteLength + midBuf.byteLength + endBuf.byteLength, BigInt(fileSize), false);
-
-    const digest = await crypto.subtle.digest('SHA-256', compositeBuffer.buffer);
+    const sizeBytes = new ArrayBuffer(8);
+    new DataView(sizeBytes).setBigUint64(0, BigInt(fileSize), false);
+    const composite = await new Blob([startSlice, midSlice, endSlice, sizeBytes]).arrayBuffer();
+    const digest = await crypto.subtle.digest('SHA-256', composite);
     if (onProgress) onProgress(100);
     return this.bufferToHex(digest);
   }
