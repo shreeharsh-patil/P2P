@@ -14,8 +14,12 @@ export const Hero: React.FC = () => {
         </div>
       </div>
 
-      <h1 className="font-mono font-black text-5xl sm:text-6xl lg:text-7xl tracking-tight text-[#f2f2f2]">
-        DropIt
+      <h1 className="mx-auto w-full max-w-[460px]">
+        <img
+          src="/dropit-wordmark.svg"
+          alt="DropIt"
+          className="mx-auto h-auto w-full mix-blend-screen drop-shadow-[0_8px_28px_rgba(255,30,30,0.14)]"
+        />
       </h1>
 
       <p className="text-xs sm:text-sm font-mono text-[#ff3030] tracking-[0.3em] uppercase">

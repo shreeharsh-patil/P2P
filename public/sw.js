@@ -4,10 +4,12 @@
  * Cache-first for static icons/manifests with offline fallback.
  */
 
-const CACHE_NAME = 'dropit-p2p-cache-v3';
+const CACHE_NAME = 'dropit-p2p-cache-v4';
 const STATIC_ASSETS = [
   '/manifest.json',
-  '/favicon.svg'
+  '/favicon.svg',
+  '/dropit-wordmark.svg',
+  '/dropit-logo-reference.png'
 ];
 
 self.addEventListener('install', (event) => {
