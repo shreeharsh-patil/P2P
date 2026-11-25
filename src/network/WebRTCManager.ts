@@ -78,6 +78,7 @@ export class WebRTCManager {
   private answerSent = false;
   private offerReceived = false;
   private answerReceived = false;
+  private lastOfferSentAt = 0;
 
   constructor(signaling: SignalingClient, events: WebRTCEvents = {}) {
     this.signaling = signaling;
@@ -182,6 +183,7 @@ export class WebRTCManager {
   private activateWebSocketRelayMode(reason: string) {
     if (this.isWebSocketRelayMode || !this.signaling.isOnline()) return;
     console.log(`[WebRTC] Fallback to WebSocket Relay Mode (${reason})`);
+    this.teardownPeerConnection();
     this.isWebSocketRelayMode = true;
     this.updateState('connected');
     this.events.onChannelReady?.();
@@ -230,6 +232,12 @@ export class WebRTCManager {
         return;
       }
       if (type === 'restart-request' && this.isInitiator && msg.peerId) {
+        if (
+          this.areChannelsOpen() ||
+          (this.connectionState === 'connecting' && Date.now() - this.lastOfferSentAt < 3_000)
+        ) {
+          return;
+        }
         void this.initiateConnection(msg.peerId).catch(console.error);
         return;
       }
@@ -319,6 +327,7 @@ export class WebRTCManager {
     if (this.peerConnection !== activePc) return;
 
     console.log(`[WebRTC] Sending SDP offer to ${targetPeerId}`);
+    this.lastOfferSentAt = Date.now();
     if (this.signaling.sendSignal(targetPeerId, { type: 'offer', sdp: offer })) {
       this.offerSent = true;
       this.pendingOutgoingOffer = null;

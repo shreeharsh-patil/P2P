@@ -232,8 +232,14 @@ export class SignalingClient {
     if (message.type === 'CREATE_SESSION' || message.type === 'JOIN_SESSION') {
       this.sendQueue = [message];
     }
-    if (!this.isOnline() && !this.reconnectTimer && !this.connectPromise) {
-      void this.connect().catch(() => {});
+    if (!this.isOnline() && !this.connectPromise) {
+      if (this.reconnectTimer && (message.type === 'CREATE_SESSION' || message.type === 'JOIN_SESSION')) {
+        this.clearReconnectTimer();
+        this.retries = 0;
+      }
+      if (!this.reconnectTimer) {
+        void this.connect().catch(() => {});
+      }
     }
     return false;
   }

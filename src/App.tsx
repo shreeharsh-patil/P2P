@@ -171,12 +171,17 @@ export const App: React.FC = () => {
       if (!msg.sessionId) return;
       roleRef.current = msg.isHost ? 'host' : 'join';
       setSessionId(msg.sessionId);
-      if (rtc.areChannelsOpen() && !rtc.isWebSocketRelayMode) {
+      if (rtc.areChannelsOpen()) {
         setViewState('connected');
         return;
       }
-      rtc.close();
+      if (msg.isHost && !msg.targetPeerId) {
+        setViewState('host');
+        return;
+      }
       if (msg.targetPeerId) rtc.setTargetPeerId(msg.targetPeerId);
+      if (rtc.connectionState === 'connecting') return;
+      rtc.close();
       setViewState('waiting');
       showToast('info', 'SESSION RESTORED — REESTABLISHING PEER CONNECTION...');
     });
@@ -257,8 +262,15 @@ export const App: React.FC = () => {
       rtcRef.current?.close();
       transferRef.current?.resetSession();
       roleRef.current = 'host';
+      setSessionId(null);
+      setViewState('waiting');
       signalingRef.current.createSession();
-      showToast('info', 'GENERATING SESSION CODE...');
+      showToast(
+        'info',
+        signalingRef.current.isOnline()
+          ? 'GENERATING SESSION CODE...'
+          : 'CONNECTING TO SIGNALING SERVER...'
+      );
     }
   };
 
@@ -454,7 +466,9 @@ export const App: React.FC = () => {
                 </div>
                 <div className="text-center space-y-2">
                   <p className="text-sm text-[#ff3030] tracking-[0.25em] uppercase font-bold animate-pulse">
-                    ESTABLISHING ENCRYPTED TUNNEL
+                    {!sessionId && roleRef.current === 'host'
+                      ? 'CREATING SESSION'
+                      : 'ESTABLISHING ENCRYPTED TUNNEL'}
                   </p>
                   {sessionId && (
                     <p className="text-xs text-[#555] tracking-widest">
@@ -462,7 +476,9 @@ export const App: React.FC = () => {
                     </p>
                   )}
                   <p className="text-xs text-[#444] mt-4 max-w-xs mx-auto leading-relaxed">
-                    Negotiating WebRTC DataChannel via STUN/TURN.<br />This may take 10–30 seconds.
+                    {!sessionId && roleRef.current === 'host'
+                      ? 'Connecting to signaling server to generate your session code...'
+                      : <>Negotiating WebRTC DataChannel via STUN/TURN.<br />This may take 10–30 seconds.</>}
                   </p>
                 </div>
                 <button
