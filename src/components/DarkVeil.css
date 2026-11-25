@@ -12,3 +12,45 @@
   width: 100%;
   height: 100%;
 }
+
+.ambient-glow {
+  position: absolute;
+  width: clamp(24rem, 58vw, 58rem);
+  aspect-ratio: 1;
+  border-radius: 9999px;
+  pointer-events: none;
+  filter: blur(110px);
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+
+.ambient-glow--northwest {
+  top: -42%;
+  left: -30%;
+  background: radial-gradient(circle, rgba(239, 68, 68, 0.2), rgba(127, 29, 29, 0.08) 38%, transparent 72%);
+  animation: ambient-drift-northwest 34s ease-in-out infinite alternate;
+}
+
+.ambient-glow--southeast {
+  right: -35%;
+  bottom: -55%;
+  background: radial-gradient(circle, rgba(225, 29, 72, 0.16), rgba(127, 29, 29, 0.06) 42%, transparent 72%);
+  animation: ambient-drift-southeast 41s ease-in-out infinite alternate;
+}
+
+@keyframes ambient-drift-northwest {
+  from { transform: translate3d(-2%, -1%, 0) scale(0.94); }
+  to { transform: translate3d(12%, 11%, 0) scale(1.08); }
+}
+
+@keyframes ambient-drift-southeast {
+  from { transform: translate3d(2%, 2%, 0) scale(1.06); }
+  to { transform: translate3d(-11%, -10%, 0) scale(0.92); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-glow--northwest,
+  .ambient-glow--southeast {
+    animation: none;
+  }
+}
