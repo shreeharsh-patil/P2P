@@ -14,11 +14,11 @@ export const Hero: React.FC = () => {
         </div>
       </div>
 
-      <h1 className="mx-auto w-full max-w-[460px]">
+      <h1 className="relative mx-auto block aspect-[3.68] w-full max-w-[460px] overflow-hidden mix-blend-screen">
         <img
-          src="/dropit-wordmark.svg"
+          src="/dropit-logo-reference.png"
           alt="DropIt"
-          className="mx-auto h-auto w-full mix-blend-screen drop-shadow-[0_8px_28px_rgba(255,30,30,0.14)]"
+          className="absolute left-0 top-0 aspect-square w-full max-w-none -translate-y-[51.44%] object-contain drop-shadow-[0_8px_28px_rgba(255,30,30,0.14)]"
         />
       </h1>
 
