@@ -413,7 +413,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="app-shell min-h-screen bg-[#050505] text-[#f2f2f2] flex flex-col font-sans relative overflow-x-hidden">
+    <div className="min-h-screen bg-[#050505] text-[#f2f2f2] flex flex-col font-sans relative overflow-x-hidden">
       {/* Animated Technical Background */}
       <AnimatedBackground />
 
@@ -426,7 +426,7 @@ export const App: React.FC = () => {
           onOpenSettings={() => setIsSettingsModalOpen(true)}
         />
 
-        <main className="app-main flex-1 w-full max-w-[1120px] mx-auto py-6 sm:py-8">
+        <main className="flex-1 w-full max-w-[960px] mx-auto py-6 sm:py-8">
 
           {/* ============ CONNECTED WORKSPACE ============ */}
           {viewState === 'connected' ? (
@@ -538,24 +538,18 @@ export const App: React.FC = () => {
 
           /* ============ LANDING ============ */
           ) : (
-            <div className="landing-layout">
-              <div className="landing-main-grid">
-                <Hero />
-                <LandingActions
-                  onCreateSession={handleCreateSession}
-                  onSelectJoin={() => setViewState('join')}
-                  onJoinSession={handleJoinSession}
-                  onOpenQRScanner={() => setIsQRScannerOpen(true)}
-                  activeMode="create"
-                />
-              </div>
-              <section className="landing-workflow" id="how-it-works">
-                <div className="workflow-heading">
-                  <span>THE WORKFLOW</span>
-                  <h2>Ready in three steps</h2>
-                </div>
+            <div className="space-y-12">
+              <Hero />
+              <LandingActions
+                onCreateSession={handleCreateSession}
+                onSelectJoin={() => setViewState('join')}
+                onJoinSession={handleJoinSession}
+                onOpenQRScanner={() => setIsQRScannerOpen(true)}
+                activeMode="create"
+              />
+              <div id="how-it-works">
                 <HowItWorks />
-              </section>
+              </div>
             </div>
           )}
         </main>

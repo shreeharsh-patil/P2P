@@ -1,6 +1,5 @@
 import React from 'react';
-import { Settings, Cpu, HardDrive, Volume2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
+import { X, Settings, Cpu, HardDrive, Volume2 } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -23,6 +22,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   soundEnabled,
   onSoundToggle
 }) => {
+  if (!isOpen) return null;
+
   const chunkSizes = [
     { label: '16 KB', value: 16 * 1024 },
     { label: '32 KB', value: 32 * 1024 },
@@ -30,17 +31,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   ];
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-md font-mono space-y-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+      <div className="tech-panel p-6 max-w-md w-full relative bg-[#09090b] border border-[#ff2b2b]/50 shadow-[0_0_30px_rgba(255,43,43,0.15)] font-mono space-y-5">
         <div className="flex items-center justify-between border-b border-[#1c1c22] pb-3">
           <div className="flex items-center gap-2 text-[#ff2b2b]">
             <Settings className="w-5 h-5" />
-            <div>
-              <DialogTitle className="text-sm font-bold text-[#f2f2f2] tracking-wide">Settings</DialogTitle>
-              <DialogDescription className="mt-1 text-[10px] text-[#8a8a8a]">Adjust performance and save behavior.</DialogDescription>
-            </div>
+            <h3 className="text-sm font-bold text-[#f2f2f2] tracking-wide">Settings</h3>
           </div>
-          <span className="w-8" aria-hidden="true" />
+          <button
+            onClick={onClose}
+            className="p-1 text-[#8a8a8a] hover:text-white rounded-xs transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Chunk Size Selector */}
@@ -107,7 +110,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             />
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 };

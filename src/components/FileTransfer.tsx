@@ -407,8 +407,12 @@ export const FileTransfer: React.FC<FileTransferProps> = ({
               </span>
             )}
 
-            <span className="auto-accept-indicator" aria-label="Incoming files are accepted automatically">
-              <Zap className="h-3 w-3" aria-hidden="true" /> AUTO ACCEPT ON
+            <span
+              className="px-2 py-0.5 text-[10px] font-mono rounded-xs border border-emerald-500/50 bg-emerald-500/15 text-emerald-300 font-bold flex items-center gap-1"
+              aria-label="Incoming files are accepted automatically"
+            >
+              <Zap className="w-3 h-3 text-emerald-400 fill-emerald-400" aria-hidden="true" />
+              <span>Auto-Accept: ON</span>
             </span>
           </div>
 

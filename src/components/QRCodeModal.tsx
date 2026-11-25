@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Copy, Check } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
+import { X, Copy, Check } from 'lucide-react';
 
 interface QRCodeModalProps {
   isOpen: boolean;
@@ -12,6 +11,8 @@ interface QRCodeModalProps {
 export const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, sessionId }) => {
   const [copied, setCopied] = useState(false);
 
+  if (!isOpen) return null;
+
   const shareUrl = `${window.location.origin}/?join=${sessionId}`;
 
   const handleCopyLink = () => {
@@ -21,13 +22,20 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, sessi
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-sm font-mono space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+      <div className="tech-panel p-6 max-w-sm w-full relative bg-[#09090b] border border-[#ff2b2b]/50 shadow-[0_0_30px_rgba(255,43,43,0.15)] font-mono space-y-4">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1 text-[#8a8a8a] hover:text-white rounded-xs transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
         <div className="text-center space-y-3">
-          <DialogTitle className="text-sm font-bold text-[#f2f2f2] tracking-wide">Scan to connect</DialogTitle>
-          <DialogDescription className="text-xs text-[#8a8a8a]">
+          <h3 className="text-sm font-bold text-[#f2f2f2] tracking-wide">Scan to connect</h3>
+          <p className="text-xs text-[#8a8a8a]">
             Point your camera at this code to join the session.
-          </DialogDescription>
+          </p>
 
           <div className="bg-white p-3 rounded-xs inline-block border-2 border-[#ff2b2b]">
             <QRCodeSVG
@@ -52,7 +60,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, sessi
             </button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 };
