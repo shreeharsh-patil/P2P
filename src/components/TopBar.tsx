@@ -26,13 +26,11 @@ export const TopBar: React.FC<TopBarProps> = ({
   sessionId
 }) => {
   return (
-    <header className="w-full border-b border-[#1c1c22] bg-[#050505]/80 backdrop-blur-md sticky top-0 z-40">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-        {/* Brand */}
+    <header className="sticky top-0 z-40 w-full bg-[#050505]/75 px-4 pt-3 backdrop-blur-md sm:px-6 sm:pt-4">
+      <div className="mx-auto flex h-14 max-w-5xl items-center gap-4 border border-[#381014] bg-[#080809]/90 px-4 shadow-[0_10px_35px_rgba(0,0,0,0.28)] sm:px-6">
         <BrandLogo size="sm" />
-
-        {/* Status Indicator */}
-        <div className="flex items-center gap-3 sm:gap-4">
+        <div className="mx-2 hidden flex-1 border-t border-[#252529] sm:block" />
+        <div className="flex shrink-0 items-center border border-[#29292e] bg-[#09090a] px-3 py-2">
           <StatusIndicator
             status={statusFor(webrtcState, signalingConnected, sessionId)}
             size="sm"

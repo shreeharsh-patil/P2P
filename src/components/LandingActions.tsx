@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Camera, Link2, ArrowRight, Plus, ScanLine } from 'lucide-react';
+import { Camera, Link2, ArrowRight, ChevronRight } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
@@ -45,31 +45,47 @@ export const LandingActions: React.FC<LandingActionsProps> = ({
   };
 
   return (
-    <div className="w-full">
-      <Card className="mx-auto w-full max-w-xl overflow-hidden border-white/[0.09] bg-[#0b0b0d]/95 lg:max-w-none">
-        <CardHeader className="space-y-2 border-b border-white/[0.06] px-6 pb-5 pt-6 sm:px-7">
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-[#ff666b]">Get started</p>
-          <CardTitle className="text-xl tracking-tight sm:text-2xl">Connect your devices</CardTitle>
-          <CardDescription className="leading-relaxed">Create a private session or join one with a code.</CardDescription>
-        </CardHeader>
+    <div className="mx-auto w-full max-w-[480px] space-y-3">
+      <Button
+        variant="panel"
+        size="lg"
+        onClick={onCreateSession}
+        className="group h-auto min-h-[92px] w-full justify-start whitespace-normal rounded-md border-[#29292f] bg-[#09090b]/95 px-5 py-4 text-left hover:border-[#ff3a40]/55 hover:bg-[#0d0d10]"
+      >
+        <span className="flex w-full items-center gap-4">
+          <span className="flex h-9 min-w-9 items-center justify-center border border-[#ff3a40]/25 bg-[#ff2b2b]/[0.05] px-2 font-mono text-[11px] text-[#ff686e]">[H]</span>
+          <span className="flex min-w-0 flex-1 flex-col items-start gap-1.5">
+            <span className="font-mono text-sm font-semibold tracking-[0.14em]">HOST</span>
+            <span className="text-xs font-normal normal-case tracking-normal text-[#929297]">Generate a connection code</span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-[#77777d] transition-transform group-hover:translate-x-0.5 group-hover:text-[#ff686e]" />
+        </span>
+      </Button>
 
-        <CardContent className="space-y-3 px-6 pb-6 pt-5 sm:px-7 sm:pb-7">
-          <Button size="lg" onClick={onCreateSession} className="w-full justify-between rounded-lg px-5 font-mono text-xs uppercase tracking-[0.14em]">
-            <span className="flex items-center gap-2"><Plus className="h-4 w-4" /> Create session</span>
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={onSelectJoin}
-            className={`w-full justify-between rounded-lg px-5 font-mono text-xs uppercase tracking-[0.14em] ${activeMode === 'join' ? 'border-[#ff3a40]/65 bg-[#ff2b2b]/[0.06] text-[#ff7277]' : ''}`}
-          >
-            <span className="flex items-center gap-2"><ScanLine className="h-4 w-4" /> Join session</span>
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+      <Button
+        variant="panel"
+        size="lg"
+        onClick={onSelectJoin}
+        className={`group h-auto min-h-[92px] w-full justify-start whitespace-normal rounded-md px-5 py-4 text-left ${activeMode === 'join' ? 'border-[#ff3a40]/60 bg-[#0d0d10]' : 'border-[#29292f] bg-[#09090b]/95'} hover:border-[#ff3a40]/55 hover:bg-[#0d0d10]`}
+      >
+        <span className="flex w-full items-center gap-4">
+          <span className="flex h-9 min-w-9 items-center justify-center border border-[#ff3a40]/25 bg-[#ff2b2b]/[0.05] px-2 font-mono text-[11px] text-[#ff686e]">[J]</span>
+          <span className="flex min-w-0 flex-1 flex-col items-start gap-1.5">
+            <span className="font-mono text-sm font-semibold tracking-[0.14em]">JOIN</span>
+            <span className="text-xs font-normal normal-case tracking-normal text-[#929297]">Enter or scan a session code</span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-[#77777d] transition-transform group-hover:translate-x-0.5 group-hover:text-[#ff686e]" />
+        </span>
+      </Button>
 
-          {activeMode === 'join' && (
-            <form onSubmit={handleJoinSubmit} className="space-y-3 border-t border-white/[0.07] pt-4">
+      {activeMode === 'join' && (
+        <Card className="border-[#29292f] bg-[#09090b]/95">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-mono text-sm tracking-wider">Join a session</CardTitle>
+            <CardDescription>Enter the six-digit code or scan its QR code.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <form onSubmit={handleJoinSubmit} className="space-y-3">
               <div className="flex items-center gap-2">
                 <Input
                   value={inputCode}
@@ -92,9 +108,9 @@ export const LandingActions: React.FC<LandingActionsProps> = ({
                 </Button>
               </div>
             </form>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

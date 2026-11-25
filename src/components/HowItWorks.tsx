@@ -23,12 +23,9 @@ export const HowItWorks: React.FC = () => {
 
   return (
     <section className="w-full space-y-4">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-[#ff666b]">How it works</p>
-          <h2 className="mt-2 text-lg font-semibold tracking-tight text-[#f2f2f2]">Three steps. No cloud handoff.</h2>
-        </div>
-        <span className="hidden pb-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[#66666c] sm:inline">Direct device to device</span>
+      <div className="text-center">
+        <p className="inline-block bg-[#080809]/80 px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#929297]">// How it works</p>
+        <h2 className="mt-2 text-base font-semibold tracking-tight text-[#f2f2f2]">Three steps. Direct connection.</h2>
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
