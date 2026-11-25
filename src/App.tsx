@@ -6,7 +6,6 @@ import { LandingActions } from './components/LandingActions';
 import { HostScreen } from './components/HostScreen';
 import { JoinScreen } from './components/JoinScreen';
 import { ConnectedScreen } from './components/ConnectedScreen';
-import { HowItWorks } from './components/HowItWorks';
 import { Footer } from './components/Footer';
 import { QRCodeModal } from './components/QRCodeModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -546,9 +545,6 @@ export const App: React.FC = () => {
                 onOpenQRScanner={() => setIsQRScannerOpen(true)}
                 activeMode="create"
               />
-              <div id="how-it-works" className="w-full pt-1">
-                <HowItWorks />
-              </div>
             </div>
           )}
         </main>
